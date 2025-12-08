@@ -1,1106 +1,519 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8">
-<title>위너스 경매 데모 (Fixed - All features v11 - Final Patched)</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WeNers — 실시간 경매</title>
+
+<!-- Tailwind (dev CDN). 프로덕션에서는 컴파일 CSS 사용 권장 -->
 <script src="https://cdn.tailwindcss.com"></script>
+
 <style>
-  body { font-family: system-ui, -apple-system, sans-serif; }
+  /* 핵심 스타일 (원본 UI 느낌 재현) */
+  :root { --accent: #06b6d4; --muted: #6b7280; --bg:#f8fafc; }
+  body { font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#0f172a; }
+  header { background: white; box-shadow: 0 4px 20px rgba(2,6,23,0.06); }
+  .container { max-width:1100px; margin:0 auto; padding:20px; }
+  .hero { padding:56px 20px; border-radius:12px; background:linear-gradient(135deg,#0ea5e9 0%, #06b6d4 100%); color:white; display:flex; align-items:center; justify-content:space-between; gap:20px; }
+  .hero h1 { font-size:36px; line-height:1.05; margin:0; font-weight:800; }
+  .hero p { margin:8px 0 0; color:rgba(255,255,255,0.9); }
+  .btn { display:inline-block; padding:10px 16px; border-radius:10px; font-weight:700; text-decoration:none; }
+  .btn-primary { background:white; color:#06b6d4; }
+  .btn-ghost { background:transparent; border:2px solid rgba(255,255,255,0.18); color:white; }
 
-  /* 부드러운 반대 깜빡임 (원본 유지) */
-  @keyframes fadeA {
-    0%, 45% { opacity: 1; }
-    55%, 100% { opacity: 0.15; }
-  }
-  @keyframes fadeB {
-    0%, 45% { opacity: 0.15; }
-    55%, 100% { opacity: 1; }
-  }
-  .fade-a { animation: fadeA 3s infinite ease-in-out; }
-  .fade-b { animation: fadeB 3s infinite ease-in-out; }
+  /* floating badges */
+  .floating { display:flex; gap:12px; }
+  .badge { background:white; color:#0f172a; padding:10px 14px; border-radius:12px; font-weight:700; box-shadow:0 6px 18px rgba(2,6,23,0.08); transform-origin:center; animation:float 3.2s ease-in-out infinite; }
+  .badge:nth-child(2){ animation-delay:0.25s;}
+  .badge:nth-child(3){ animation-delay:0.5s;}
+  @keyframes float { from { transform: translateY(0);} to { transform: translateY(-14px);} }
 
-  /* 둥둥 떠다니는 애니메이션 (원본 유지) */
-  @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
-  }
-  .animate-float { animation: float 4s ease-in-out infinite; }
-  .animate-float-delay { animation: float 4s ease-in-out infinite; animation-delay: 2s; }
+  /* product grid */
+  .grid { display:grid; grid-template-columns: repeat(1, minmax(0,1fr)); gap:18px; }
+  @media(min-width:640px){ .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media(min-width:1024px){ .grid { grid-template-columns: repeat(3, 1fr); } }
+  .card { background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 18px rgba(2,6,23,0.06); transition:transform .15s ease, box-shadow .15s ease; }
+  .card:hover { transform: translateY(-6px); box-shadow:0 12px 40px rgba(2,6,23,0.09); }
+  .card-img { width:100%; height:220px; object-fit:cover; background:#f3f4f6; }
+  .card-body { padding:14px; }
+  .card-title { font-weight:700; font-size:16px; }
+  .muted { color:var(--muted); font-size:13px; }
 
-  /* 긴 제목을 안전하게 2줄까지 표시 (원본은 한 줄 축소 방식이었음) */
-  .shrink-text-container {
-      overflow: hidden;
-      display: block;
-      width: 100%;
-      line-height: 1.25rem;
-      max-height: 2.5rem; /* 2 lines */
-  }
-  .shrink-text {
-      display: -webkit-box;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      font-size: 1.125rem;
-      font-weight: 700;
-  }
+  /* form modal (simple) */
+  .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.45); z-index:1000; padding:20px; }
+  .modal-card { width:100%; max-width:720px; background:white; border-radius:10px; padding:18px; }
 
-  /* 접근성 focus outline */
-  .focus-outline:focus { outline: 2px solid rgba(14,165,233,0.6); outline-offset: 2px; }
-
-  /* 모바일에서 제목 축소 대신 줄 바꿈 허용 */
-  @media (max-width: 640px) {
-    .shrink-text { font-size: 1rem; }
-  }
+  /* small helpers */
+  .hidden { display:none; }
+  .text-danger { color:#dc2626; }
 </style>
 </head>
-<body class="bg-sky-50 min-h-screen text-gray-800">
-<div id="app" class="max-w-7xl mx-auto p-6"></div>
+<body>
 
-<script>
-/* ==================================================
-   안전 유틸 / DOM 헬퍼
-   - el(): 안전한 DOM 생성, textContent 삽입 권장
-   - escapeHtml(): 디버깅용(필요 시)
-   ================================================== */
-const el = (tag, attr={}, children=[]) => {
-  const e = document.createElement(tag);
-  for(const [k,v] of Object.entries(attr||{})){
-    if(k.startsWith('on') && typeof v === 'function') e.addEventListener(k.slice(2), v);
-    else if(k === 'class') e.className = v;
-    else if(k === 'style' && typeof v === 'object') Object.assign(e.style, v);
-    else e.setAttribute(k, String(v));
+<header>
+  <div class="container flex items-center justify-between">
+    <div>
+      <a href="#" style="font-weight:800; color:var(--accent); font-size:20px;">WeNers</a>
+      <span class="muted" style="margin-left:8px; font-weight:600;">— 작은 거래도 즐거운 경매</span>
+    </div>
+    <nav>
+      <a id="login-link" class="muted" href="auth_login.html" style="margin-right:12px;">로그인</a>
+      <a id="signup-link" class="muted" href="auth_signup.html" style="margin-right:12px;">회원가입</a>
+      <a href="#" id="open-create" class="btn btn-primary">상품 등록</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  <!-- HERO -->
+  <section class="hero mt-6">
+    <div style="max-width:64%;">
+      <div class="badge" style="display:inline-block;background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:999px;font-weight:700;">NEW</div>
+      <h1>작은 거래도 즐거운 경험으로<br><span id="hero-slogan">팔래? 말래? 살래? 말래?</span></h1>
+      <p>실시간 입찰 · 이벤트 경매 · 간편 등록. 지금 바로 구경해보세요.</p>
+      <div style="margin-top:16px;">
+        <a href="weners_with_bids_realtime_auth.html" class="btn btn-primary">구경하러 가기</a>
+        <a href="#" id="create-btn" class="btn btn-ghost" style="margin-left:10px;">상품 등록</a>
+      </div>
+    </div>
+    <div class="floating" style="align-items:center;">
+      <div class="badge">Electronics</div>
+      <div class="badge">Book</div>
+      <div class="badge">Living</div>
+    </div>
+  </section>
+
+  <!-- product list header -->
+  <section style="margin-top:26px; display:flex; justify-content:space-between; align-items:center;">
+    <h2 style="font-size:20px; font-weight:800;">전체 상품</h2>
+    <div class="muted">정렬 · 필터 · 검색 기능은 추후 추가됩니다</div>
+  </section>
+
+  <!-- product grid -->
+  <section style="margin-top:14px;">
+    <div id="product-grid" class="grid">
+      <!-- product cards rendered here -->
+    </div>
+    <div id="no-products" class="muted" style="text-align:center; padding:30px; display:none;">
+      등록된 상품이 없습니다. 상품 등록을 시도해보세요.
+    </div>
+  </section>
+</main>
+
+<!-- Create / Edit Modal (hidden by default) -->
+<div id="modal-create" class="modal hidden" aria-hidden="true">
+  <div class="modal-card">
+    <h3 style="font-size:18px; font-weight:800;">상품 등록</h3>
+    <form id="product-form" style="margin-top:12px;">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <label class="muted">상품 제목 *</label>
+          <input id="title" required class="w-full border rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="muted">카테고리</label>
+          <input id="category" class="w-full border rounded px-3 py-2" placeholder="예: Electronics" />
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <label class="muted">상품 설명</label>
+        <textarea id="description" class="w-full border rounded px-3 py-2" rows="4"></textarea>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+        <div>
+          <label class="muted">시작가 (원) *</label>
+          <input id="price_start" type="number" required class="w-full border rounded px-3 py-2" />
+        </div>
+        <div>
+          <label class="muted">즉시구매가 (선택)</label>
+          <input id="buy_price" type="number" class="w-full border rounded px-3 py-2" placeholder="없음" />
+        </div>
+      </div>
+
+      <!-- Event auction fields -->
+      <div id="event-fields" style="margin-top:10px; display:none; background:#fffbeb; padding:10px; border-radius:8px;">
+        <div class="muted">이벤트 경매 설정</div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px;">
+          <input id="event_start" class="w-full border rounded px-3 py-2" placeholder="예: 10000" />
+          <input id="event_end" class="w-full border rounded px-3 py-2" placeholder="예: 10050" />
+        </div>
+        <div class="muted" style="font-size:12px; margin-top:6px;">입찰자는 시작가와 종료가 사이의 숫자만 입력 가능. 낙찰금액은 범위에서 추첨됩니다.</div>
+      </div>
+
+      <!-- Images -->
+      <div style="margin-top:10px;">
+        <label class="muted">이미지 (최대 3장)</label>
+        <input id="images" type="file" accept="image/*" multiple class="w-full" />
+        <div id="preview-list" style="display:flex; gap:8px; margin-top:8px;"></div>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+        <button type="button" id="cancel-create" class="btn btn-ghost">취소</button>
+        <button type="submit" class="btn btn-primary">등록하기</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Simple product detail panel (overlay) -->
+<div id="modal-detail" class="modal hidden" aria-hidden="true">
+  <div class="modal-card" id="detail-card">
+    <!-- populated dynamically -->
+  </div>
+</div>
+
+<!-- JS: Supabase 연결 및 기능 통합 -->
+<script type="module">
+  // -------------- Supabase config (from your earlier provided data) --------------
+  // If you want these in a separate file, move them to public/config.js and use window.* variables.
+  const SUPABASE_URL = "https://wfgqdswcdwdvfaqwejmd.supabase.co";
+  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmZ3Fkc3djZHdkdmZhcXdlam1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MDc2NjcsImV4cCI6MjA4MDM4MzY2N30.Jb9nqalTEPp3Grwy3lnLczl6cE7gTSsK4Ol3hXGdl1Q";
+  // -------------- end config --------------
+
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // bucket name for images
+  const IMG_BUCKET = "product-images";
+
+  // ----- utility functions -----
+  function el(tag, props = {}, children = []) {
+    const node = document.createElement(tag);
+    for (const [k,v] of Object.entries(props || {})) {
+      if (k === "class") node.className = v;
+      else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
+      else node.setAttribute(k, v);
+    }
+    if (typeof children === "string") node.innerHTML = children;
+    else children.forEach(c => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
+    return node;
   }
-  if(typeof children === 'string') e.textContent = children;
-  else (children||[]).forEach(c => e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c));
-  return e;
-};
-const escapeHtml = s => String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-/* 간단한 alert wrapper (데모용) */
-const toast = msg => { try { alert(msg); } catch(e) { console.log(msg); } };
+  function fmt(n){ if(n===null||n===undefined) return ""; return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,","); }
 
-/* 숫자/시간 format 유틸 */
-const formatNumber = num => num ? Number(num).toLocaleString() : '0';
-const fmt = d => new Date(d).toLocaleString('ko-KR');
-const fmtDate = d => new Date(d).toLocaleDateString('ko-KR');
+  // ----- DOM refs -----
+  const productGrid = document.getElementById("product-grid");
+  const noProducts = document.getElementById("no-products");
+  const modalCreate = document.getElementById("modal-create");
+  const modalDetail = document.getElementById("modal-detail");
+  const productForm = document.getElementById("product-form");
+  const imagesInput = document.getElementById("images");
+  const previewList = document.getElementById("preview-list");
+  const createBtn = document.getElementById("create-btn");
+  const openCreate = document.getElementById("open-create");
+  const cancelCreate = document.getElementById("cancel-create");
 
-/* debounce (검색 입력 등에서 사용) */
-function debounce(fn, wait=250){
-  let t;
-  return (...args) => {
-    clearTimeout(t);
-    t = setTimeout(()=> fn(...args), wait);
-  };
-}
+  // state
+  let currentProducts = [];
+  let isLoggedIn = false;
+  let currentUser = null;
 
-/* 숫자 입력 포맷팅 (천단위 콤마) */
-const formatInput = (target) => {
-    let val = target.value.replace(/[^0-9]/g, '');
-    target.value = val ? parseInt(val).toLocaleString() : '';
-};
-const parseFormattedNumber = (str) => {
-    if (typeof str !== 'string') return str;
-    return parseInt(str.replace(/,/g, '')) || 0;
-}
+  // initial check: test connectivity
+  (async ()=> {
+    try {
+      const { data, error } = await supabase.from("products").select("id").limit(1);
+      if (error) console.warn("Supabase test query error:", error.message);
+      else console.log("Supabase connected — products table reachable");
+    } catch(e) { console.error("Supabase init error", e); }
+  })();
 
-/* timeLeft 텍스트 (간단) */
-const timeLeft = end => {
-  const diff = new Date(end) - new Date();
-  if(diff <= 0) return '경매 종료';
-  const d = Math.floor(diff/86400000);
-  const h = Math.floor((diff%86400000)/3600000);
-  const m = Math.floor((diff%3600000)/60000);
-  const s = Math.floor((diff%60000)/1000);
-  return d ? `${d}일 ${h}시간 남음` : `${h}시간 ${m}분 ${s}초`;
-};
-
-/* ==================================================
-   상태(State) 및 로컬스토리지 관리
-   개선 포인트:
-   - loadProducts()는 products를 반환하도록 보장
-   - saveUsers/saveProducts 함수 일관화
-   ================================================== */
-let state = {
-  view: 'main',
-  session: null,
-  products: [],
-  filter: '',
-  detail: null,
-  timerId: null
-};
-
-const KEY_USERS = 'w_users';
-const KEY_PRODUCTS = 'w_products';
-const KEY_SESSION = 'w_session';
-
-const loadUsers = () => JSON.parse(localStorage.getItem(KEY_USERS) || '[]');
-const saveUsers = (u) => localStorage.setItem(KEY_USERS, JSON.stringify(u));
-
-const loadProducts = () => {
-  const arr = JSON.parse(localStorage.getItem(KEY_PRODUCTS) || '[]');
-  // 타입 정리
-  arr.forEach(p=>{
-    p.startingPrice = Number(p.startingPrice || 0);
-    if(p.buyNow) p.buyNow = Number(p.buyNow);
-    if(p.eventRangeStart) p.eventRangeStart = Number(p.eventRangeStart);
-    if(p.eventRangeEnd) p.eventRangeEnd = Number(p.eventRangeEnd);
-    p.bids = p.bids || [];
-  });
-  state.products = arr;
-  return state.products;
-};
-const saveProducts = () => localStorage.setItem(KEY_PRODUCTS, JSON.stringify(state.products));
-
-const loadSession = () => {
-  const s = localStorage.getItem(KEY_SESSION);
-  state.session = s ? JSON.parse(s) : null;
-  return state.session;
-};
-const saveSession = (s) => {
-  state.session = s;
-  if(s) localStorage.setItem(KEY_SESSION, JSON.stringify(s));
-  else localStorage.removeItem(KEY_SESSION);
-};
-
-/* ==================================================
-   초기화(데모 데이터) — Idempotent, 중복 방지
-   - saveUsers를 여러번 호출하던 원본 문제 수정
-   ================================================== */
-(function initDemoData(){
-  const users = loadUsers();
-  if(!users.length){
-    const initUsers = [
-      {name:'데모김',email:'demo@user.com',password:'demo',birth:'1990-01-01',phone:'010-1234-5678'},
-      {name:'경매왕',email:'winner@user.com',password:'1234',birth:'1995-05-05',phone:'010-9876-5432'},
-      {name:'운영자',email:'admin@winners.com',password:'1234',birth:'2000-01-01',phone:'010-0000-0000'}
-    ];
-    saveUsers(initUsers);
-  }
-  const prods = loadProducts();
-  if(!prods || prods.length === 0){
-    state.products = [
-      {
-        id:Date.now()-1000,
-        title:'[내가 판 상품] 에어팟 프로 2세대 (진행중)',
-        description:'거의 새것',
-        type:'general',
-        startingPrice:180000,
-        buyNow:250000,
-        images:['https://placehold.co/400x400/e0f2fe/0284c7?text=My+Sale'],
-        endDate:new Date(Date.now()+48*3600000).toISOString(),
-        creator:'demo@user.com',
-        bids:[
-          {user:'winner@user.com', price: 190000, time: new Date(Date.now()-700000).toISOString()},
-          {user:'other@user.com', price: 195000, time: new Date(Date.now()-600000).toISOString()}
-        ],
-        sold:false,
-        eventRangeStart:null,
-        eventRangeEnd:null,
-        winningPrice: null
-      },
-      {
-        id:Date.now()-2000,
-        title:'[내가 판 상품] 이벤트 - 당첨 완료 상품명 매우 길게 테스트입니다. 이 제목이 한 줄에 모두 보이도록 해주세요. 글씨가 작아져도 괜찮습니다.',
-        description:'만원대 맞추기 성공',
-        type:'event',
-        startingPrice:1000,
-        buyNow:null,
-        eventRangeStart:10000,
-        eventRangeEnd:19999,
-        images:['https://placehold.co/400x400/fbbf24/000000?text=Event+Sold'],
-        endDate:new Date(Date.now()-3600000).toISOString(),
-        creator:'demo@user.com',
-        bids:[
-          {user:'winner@user.com', price: 15000, time: new Date(Date.now()-5*3600000).toISOString()}
-        ],
-        sold:true,
-        eventClosed: true,
-        eventWinner: 'winner@user.com',
-        winningPrice: 15000
-      },
-      {
-        id:Date.now()-86400000,
-        title:'[내가 입찰] 스타벅스 기프티콘 (마감 임박)',
-        description:'유효기간 넉넉',
-        type:'general',
-        startingPrice:40000,
-        buyNow:null,
-        images:['https://placehold.co/400x400/1e3932/ffffff?text=My+Bid'],
-        endDate:new Date(Date.now()+2*3600000).toISOString(),
-        creator:'admin@winners.com',
-        bids:[
-          {user:'admin@winners.com', price: 40000, time: new Date(Date.now()-10*60000).toISOString()},
-          {user:'demo@user.com', price: 45000, time: new Date(Date.now()-5*60000).toISOString()}
-        ],
-        sold:false,
-        eventRangeStart:null,
-        eventRangeEnd:null,
-        winningPrice: null
-      },
-      {
-        id:Date.now()-5000,
-        title:'[이벤트] 만원대 맞추기 (진행 중) - 24시간 입찰 제한 테스트용입니다.',
-        description:'만원대 중 하나를 맞춰보세요!',
-        type:'event',
-        startingPrice:1000,
-        buyNow:null,
-        eventRangeStart:10000,
-        eventRangeEnd:19999,
-        images:['https://placehold.co/400x400/fbbf24/000000?text=Event+Live'],
-        endDate:new Date(Date.now()+5*24*3600000).toISOString(),
-        creator:'admin@winners.com',
-        bids:[
-          {user:'demo@user.com', price: 15000, time: new Date().toISOString()}
-        ],
-        sold:false,
-        eventClosed: false,
-        winningPrice: null
+  // ----- load products from supabase -----
+  async function loadProducts(){
+    productGrid.innerHTML = "<div class='muted' style='padding:40px;text-align:center;'>로딩 중...</div>";
+    try {
+      const { data, error } = await supabase
+        .from("products")
+        .select("id,title,description,price_start,buy_price,type,images,created_at")
+        .order("created_at",{ascending:false})
+        .limit(200);
+      if (error) { console.error(error); productGrid.innerHTML = "<div class='muted'>상품을 불러올 수 없습니다.</div>"; return; }
+      currentProducts = Array.isArray(data) ? data : [];
+      if (!currentProducts.length) {
+        productGrid.innerHTML = "";
+        noProducts.style.display = "block";
+        return;
       }
-    ];
-    saveProducts();
-  } else {
-    state.products = prods;
+      noProducts.style.display = "none";
+      renderProducts(currentProducts);
+    } catch(e){
+      console.error("loadProducts error", e);
+      productGrid.innerHTML = "<div class='muted'>서버 오류</div>";
+    }
   }
-})();
 
-/* ==================================================
-   전역 타이머: 상세 페이지 타이머를 위한 단일 인터벌
-   (원본은 상세마다 setInterval 생성 → 메모리 누수 위험)
-   ================================================== */
-if(!window.__w_ticker){
-  window.__w_ticker = setInterval(()=>{
-    document.querySelectorAll('[data-enddate]').forEach(node=>{
-      const d = node.getAttribute('data-enddate');
-      const diff = new Date(d) - new Date();
-      if(diff <= 0) node.textContent = '경매 종료';
-      else{
-        const days = Math.floor(diff/86400000);
-        const hours = Math.floor((diff%86400000)/3600000);
-        const mins = Math.floor((diff%3600000)/60000);
-        const secs = Math.floor((diff%60000)/1000);
-        node.textContent = days ? `${days}일 ${hours}시간 남음` : `${hours}시간 ${mins}분 ${secs}초`;
-      }
+  // render product cards
+  function renderProducts(items){
+    productGrid.innerHTML = "";
+    for(const p of items){
+      const img = (p.images && p.images.length && p.images[0]) ? p.images[0] : "https://placehold.co/600x400?text=No+Image";
+      const a = el("a", { href: `weners_product.html?id=${p.id}`, class: "card" });
+      a.innerHTML = `
+        <div style="height:220px; overflow:hidden;"><img src="${img}" class="card-img" alt="${(p.title||'상품')}"></div>
+        <div class="card-body">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="card-title">${p.title || '(제목없음)'}</div>
+            <div class="muted" style="font-size:12px;">${p.type || '일반'}</div>
+          </div>
+          <p class="muted" style="margin-top:8px; min-height:36px;">${(p.description||'').slice(0,120)}</p>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+            <div style="font-weight:800; color:var(--accent);">시작가 ${fmt(p.price_start)}원</div>
+            <div class="muted">입찰 —</div>
+          </div>
+        </div>
+      `;
+      productGrid.appendChild(a);
+    }
+  }
+
+  // ----- realtime subscription -----
+  function setupRealtime(){
+    const channel = supabase.channel('realtime-products')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+        console.log("products change", payload);
+        loadProducts();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, payload => {
+        console.log("bids change", payload);
+        loadProducts();
+      })
+      .subscribe((status) => {
+        console.log("realtime status", status);
+      });
+  }
+
+  // ----- create product modal handling -----
+  function openCreateModal(){
+    modalCreate.classList.remove("hidden");
+    modalCreate.setAttribute("aria-hidden", "false");
+  }
+  function closeCreateModal(){
+    modalCreate.classList.add("hidden");
+    modalCreate.setAttribute("aria-hidden", "true");
+    productForm.reset();
+    previewList.innerHTML = "";
+    document.getElementById("event-fields").style.display = "none";
+  }
+
+  createBtn.addEventListener("click", (e)=>{ e.preventDefault(); openCreateModal(); });
+  openCreate.addEventListener("click", (e)=>{ e.preventDefault(); openCreateModal(); });
+  cancelCreate.addEventListener("click", (e)=>{ e.preventDefault(); closeCreateModal(); });
+
+  // preview images
+  imagesInput.addEventListener("change", (ev)=>{
+    previewList.innerHTML = "";
+    const files = Array.from(ev.target.files).slice(0,3);
+    files.forEach(file=>{
+      const reader = new FileReader();
+      const wrapper = el("div", { style: "width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid #e6e6e6;position:relative;"});
+      const btn = el("button", { style:"position:absolute;right:4px;top:4px;background:#fff;border-radius:6px;padding:2px 6px;font-size:12px;cursor:pointer;"}, ["삭제"]);
+      btn.addEventListener("click", ()=> {
+        // remove from input (rebuild FileList)
+        const dt = new DataTransfer();
+        const remain = Array.from(imagesInput.files).filter(f => f !== file);
+        remain.forEach(f => dt.items.add(f));
+        imagesInput.files = dt.files;
+        wrapper.remove();
+      });
+      reader.onload = (e)=> {
+        const img = el("img", { src:e.target.result, style:"width:100%;height:100%;object-fit:cover;"});
+        wrapper.appendChild(img);
+        wrapper.appendChild(btn);
+        previewList.appendChild(wrapper);
+      };
+      reader.readAsDataURL(file);
     });
-  }, 1000);
-}
-
-/* ==================================================
-   UI 렌더링 관련 함수들
-   (원본 뼈대 유지하되 innerHTML로 사용자 입력을 직접 삽입하던 곳을 DOM 조합으로 변경)
-   ================================================== */
-const root = document.getElementById('app');
-
-function render(){
-  // clear prior interval for detail (we use global ticker now)
-  root.innerHTML = '';
-  loadProducts(); // 최신화
-  root.appendChild(renderHeader());
-
-  switch(state.view){
-    case 'main': root.appendChild(mainView()); break;
-    case 'login': root.appendChild(loginView()); break;
-    case 'signup': root.appendChild(signupView()); break;
-    case 'findId': root.appendChild(findIdView()); break;
-    case 'findPw': root.appendChild(findPwView()); break;
-    case 'list': root.appendChild(listView()); break;
-    case 'create': root.appendChild(createView()); break;
-    case 'detail': if(state.detail) root.appendChild(detailView(state.detail)); else root.appendChild(listView()); break;
-    case 'myBids': root.appendChild(myBidsView()); break;
-    case 'mySales': root.appendChild(mySalesView()); break;
-    default: root.appendChild(mainView()); break;
-  }
-
-  // adjust dynamic text sizes (if any)
-  setTimeout(adjustTextSizes, 0);
-}
-
-/* Header */
-function renderHeader(){
-  const header = el('header',{class:'bg-white shadow p-4 rounded flex justify-between items-center mb-6 flex-wrap gap-3'});
-  const left = el('div',{class:'flex items-center gap-3'});
-  const brand = el('div',{class:'text-2xl font-bold text-sky-600 cursor-pointer focus-outline', role:'button', tabindex:0}, '위너스');
-  brand.addEventListener('click', ()=>{ state.view='main'; render(); });
-  left.appendChild(brand);
-  left.appendChild(el('div',{class:'text-sm text-gray-500 hidden sm:block'}, '작은 거래도 즐거운 경매'));
-  header.appendChild(left);
-
-  const nav = el('div',{class:'flex items-center gap-2 flex-wrap'});
-  if(state.session){
-    nav.appendChild(el('span',{class:'text-sm font-medium'}, state.session.name + '님'));
-    nav.appendChild(el('button',{class:'px-3 py-1 border rounded text-sm', onclick:()=>{ saveSession(null); state.view='main'; render(); }}, '로그아웃'));
-    nav.appendChild(el('button',{class:'px-3 py-1 border rounded text-sm', onclick:()=>{ state.view='myBids'; render(); }}, '내 입찰'));
-    nav.appendChild(el('button',{class:'px-3 py-1 border rounded text-sm', onclick:()=>{ state.view='mySales'; render(); }}, '내 판매'));
-    nav.appendChild(el('button',{class:'px-3 py-1 bg-sky-500 text-white rounded text-sm', onclick:()=>{ state.view='create'; render(); }}, '상품등록'));
-  } else {
-    nav.appendChild(el('button',{class:'px-3 py-1 border rounded text-sm', onclick:()=>{ state.view='login'; render(); }}, '로그인'));
-    nav.appendChild(el('button',{class:'px-3 py-1 border rounded text-sm', onclick:()=>{ state.view='signup'; render(); }}, '회원가입'));
-  }
-  header.appendChild(nav);
-  return header;
-}
-
-/* 메인 뷰 (히어로) */
-function mainView(){
-  const container = el('div',{});
-  const hero = el('section',{class:'relative bg-gradient-to-br from-sky-600 via-sky-500 to-cyan-400 text-white overflow-hidden rounded-2xl shadow-2xl'});
-  const inner = el('div',{class:'relative max-w-7xl mx-auto px-8 py-16 flex flex-col md:flex-row items-center justify-between gap-10'});
-  const left = el('div',{class:'text-center md:text-left z-10 flex-1'});
-
-  left.appendChild(el('div',{class:'inline-block bg-white/20 backdrop-blur-sm px-4 py-1 rounded-full text-sm font-bold mb-6 border border-white/30'}, ['🔥 오늘 등록된 신규상품이 ', el('span',{class:'text-yellow-300 text-lg'}, String(state.products.filter(p=>new Date(p.id).toDateString() === new Date().toDateString()).length)), '개 있습니다.']));
-  left.appendChild(el('h1',{class:'text-4xl md:text-6xl font-extrabold mb-6 leading-tight'}, '작은 거래도\n즐거운 경험으로'));
-  left.appendChild(el('p',{class:'text-xl md:text-2xl mb-10 text-sky-100 font-bold'}, [`위너스에서 `, el('span',{class:'text-yellow-300 fade-a'}, '팔래? 말래?'), ' ', el('span',{class:'text-yellow-300 fade-b'}, ' 살래? 말래?')]));
-
-  const ctas = el('div',{class:'flex flex-col sm:flex-row gap-4 justify-center md:justify-start'});
-  ctas.appendChild(el('button',{class:'px-8 py-4 bg-white text-sky-600 rounded-xl font-bold text-lg shadow-lg hover:bg-gray-50 transition transform hover:scale-105', onclick:()=>{ state.view='list'; render(); }}, '구경하러 가기'));
-  if(state.session) ctas.appendChild(el('button',{class:'px-8 py-4 bg-sky-700 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-sky-800 transition transform hover:scale-105', onclick:()=>{ state.view='create'; render(); }}, '상품 등록'));
-
-  left.appendChild(ctas);
-  inner.appendChild(left);
-
-  // right visual (kept but non-essential)
-  const right = el('div',{class:'flex-1 relative w-full max-w-lg h-96 hidden md:block'});
-  right.appendChild(el('div',{class:'absolute top-0 right-10 w-40 h-40 bg-white p-2 rounded-2xl shadow-2xl animate-float rotate-3 z-20'}, [ el('img',{src:'https://placehold.co/300x300/e0f2fe/0284c7?text=Electronics', class:'w-full h-full object-cover rounded-xl', alt:'Electronics'}) , el('div',{class:'absolute -bottom-3 -right-3 bg-yellow-400 text-sky-900 text-xs font-bold px-2 py-1 rounded'}, 'HOT') ]));
-  right.appendChild(el('div',{class:'absolute bottom-10 left-10 w-36 h-36 bg-white p-2 rounded-2xl shadow-2xl animate-float-delay -rotate-6 z-10'}, [ el('img',{src:'https://placehold.co/300x300/fce7f3/db2777?text=Doll', class:'w-full h-full object-cover rounded-xl', alt:'Doll'}) ]));
-  right.appendChild(el('div',{class:'absolute top-20 left-20 w-32 h-32 bg-white p-2 rounded-2xl shadow-xl z-0'}, [ el('img',{src:'https://placehold.co/300x300/fff7ed/ea580c?text=Book', class:'w-full h-full object-cover rounded-xl', alt:'Book'}) ]));
-  right.appendChild(el('div',{class:'absolute bottom-0 right-20 w-32 h-32 bg-white p-2 rounded-2xl shadow-xl z-0 rotate-12'}, [ el('img',{src:'https://placehold.co/300x300/f0fdf4/16a34a?text=Living', class:'w-full h-full object-cover rounded-xl', alt:'Living'}) ]));
-  inner.appendChild(right);
-
-  hero.appendChild(inner);
-  container.appendChild(hero);
-  return container;
-}
-
-/* id찾기/비밀번호 찾기는 동일 로직 유지, innerHTML 사용 제거 (안전) */
-function findIdView(){
-  const card = el('div',{class:'max-w-md mx-auto bg-white rounded-xl shadow p-8'});
-  card.appendChild(el('h2',{class:'text-2xl font-bold text-sky-600 mb-6 text-center'}, '아이디 찾기'));
-
-  const form = el('form',{onsubmit:e=>{
-    e.preventDefault();
-    const name = e.target.name.value.trim();
-    const y = e.target.y.value;
-    const m = e.target.m.value.padStart(2,'0');
-    const d = e.target.d.value.padStart(2,'0');
-    const birth = `${y}-${m}-${d}`;
-    const phone = e.target.phone.value;
-    const user = loadUsers().find(u => u.name === name && u.birth === birth && u.phone === phone);
-    if(!user) return toast('일치하는 정보가 없습니다');
-    toast(`회원님의 아이디는\n\n${user.email}\n\n입니다`);
-  }});
-
-  form.appendChild(el('input',{name:'name',class:'w-full border rounded px-4 py-2 mb-4', placeholder:'성명', required:true}));
-  const dateWrap = el('div',{class:'flex gap-2 mb-4'});
-  dateWrap.appendChild(el('input',{name:'y',type:'text',maxlength:4,class:'w-1/2 border rounded px-4 py-2 text-center', placeholder:'출생연도(yyyy)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'m',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'월(mm)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'d',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'일(dd)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  form.appendChild(dateWrap);
-  form.appendChild(el('input',{name:'phone',type:'text',maxlength:13,class:'w-full border rounded px-4 py-2 mb-6', placeholder:'휴대폰번호 (숫자만 입력)', required:true, oninput:e=>autoHyphen(e.target)}));
-  form.appendChild(el('button',{class:'w-full bg-sky-500 text-white py-3 rounded font-bold'}, '아이디 찾기'));
-  card.appendChild(form);
-  card.appendChild(el('p',{class:'text-center mt-4 text-sm'}, [ el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='login'; render(); }}, '← 로그인으로 돌아가기') ]));
-  return card;
-}
-
-function findPwView(){
-  const card = el('div',{class:'max-w-md mx-auto bg-white rounded-xl shadow p-8'});
-  card.appendChild(el('h2',{class:'text-2xl font-bold text-sky-600 mb-6 text-center'}, '비밀번호 찾기'));
-
-  const form = el('form',{onsubmit:e=>{
-    e.preventDefault();
-    const email = e.target.email.value.trim();
-    const y = e.target.y.value;
-    const m = e.target.m.value.padStart(2,'0');
-    const d = e.target.d.value.padStart(2,'0');
-    const birth = `${y}-${m}-${d}`;
-    const phone = e.target.phone.value;
-    const users = loadUsers();
-    const user = users.find(u => u.email === email && u.birth === birth && u.phone === phone);
-    if(!user) return toast('일치하는 정보가 없습니다');
-    const temp = Math.random().toString(36).slice(-8);
-    user.password = temp;
-    saveUsers(users);
-    toast(`임시 비밀번호 발급 완료!\n\n${temp}\n\n로그인 후 꼭 변경하세요`);
-    state.view='login'; render();
-  }});
-
-  form.appendChild(el('input',{name:'email',class:'w-full border rounded px-4 py-2 mb-4', placeholder:'이메일', required:true}));
-  const dateWrap = el('div',{class:'flex gap-2 mb-4'});
-  dateWrap.appendChild(el('input',{name:'y',type:'text',maxlength:4,class:'w-1/2 border rounded px-4 py-2 text-center', placeholder:'출생연도(yyyy)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'m',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'월(mm)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'d',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'일(dd)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  form.appendChild(dateWrap);
-  form.appendChild(el('input',{name:'phone',type:'text',maxlength:13,class:'w-full border rounded px-4 py-2 mb-6', placeholder:'휴대폰번호 (숫자만 입력)', required:true, oninput:e=>autoHyphen(e.target)}));
-  form.appendChild(el('button',{class:'w-full bg-sky-500 text-white py-3 rounded font-bold'}, '임시 비밀번호 발급'));
-  card.appendChild(form);
-  card.appendChild(el('p',{class:'text-center mt-4 text-sm'}, [ el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='login'; render(); }}, '← 로그인으로 돌아가기') ]));
-  return card;
-}
-
-/* 회원가입 뷰 (원본 흐름 유지, 중복확인 버튼은 동작 유지) */
-function signupView(){
-  const card = el('div',{class:'max-w-md mx-auto bg-white rounded-xl shadow p-8'});
-  card.appendChild(el('h2',{class:'text-2xl font-bold text-sky-600 mb-6 text-center'}, '회원가입'));
-
-  let emailOk = false;
-  const form = el('form',{onsubmit:e=>{
-    e.preventDefault();
-    if(!emailOk) return toast('이메일 중복확인을 해주세요');
-    const name = e.target.name.value.trim();
-    const email = e.target.email.value.trim();
-    const birth = `${e.target.y.value}-${e.target.m.value.padStart(2,'0')}-${e.target.d.value.padStart(2,'0')}`;
-    const phone = e.target.phone.value;
-    const pw = e.target.password.value;
-    const pwc = e.target.passwordc.value;
-    if(pw !== pwc) return toast('비밀번호가 일치하지 않습니다');
-    if(!name || !email || !pw) return toast('필수 항목을 입력하세요');
-
-    const users = loadUsers();
-    users.push({name, email, password:pw, birth, phone});
-    saveUsers(users);
-    toast('가입 완료! 로그인해주세요');
-    state.view='login'; render();
-  }});
-
-  form.appendChild(el('input',{name:'name',class:'w-full border rounded px-4 py-2 mb-3', placeholder:'성명', required:true}));
-  const emailWrap = el('div',{class:'flex gap-2 mb-1'});
-  const emailInput = el('input',{name:'email',id:'email',class:'flex-1 border rounded px-4 py-2', placeholder:'이메일', required:true});
-  const dupBtn = el('button',{type:'button',class:'px-4 border rounded bg-gray-100 text-sm hover:bg-gray-200'}, '중복확인');
-  emailWrap.appendChild(emailInput); emailWrap.appendChild(dupBtn);
-  form.appendChild(emailWrap);
-  const msg = el('p',{id:'dupMsg',class:'text-sm mb-3 min-h-6'});
-  form.appendChild(msg);
-
-  const dateWrap = el('div',{class:'flex gap-2 mb-3'});
-  dateWrap.appendChild(el('input',{name:'y',type:'text',maxlength:4,class:'w-1/2 border rounded px-4 py-2 text-center', placeholder:'출생연도(yyyy)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'m',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'월(mm)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  dateWrap.appendChild(el('input',{name:'d',type:'text',maxlength:2,class:'w-1/4 border rounded px-4 py-2 text-center', placeholder:'일(dd)', required:true, oninput:e=>e.target.value=e.target.value.replace(/[^0-9]/g,'')}));
-  form.appendChild(dateWrap);
-
-  form.appendChild(el('input',{name:'phone',type:'text',maxlength:13,class:'w-full border rounded px-4 py-2 mb-3', placeholder:'휴대폰번호 (숫자만 입력)', required:true, oninput:e=>autoHyphen(e.target)}));
-
-  form.appendChild(el('select',{name:'company',class:'w-full border rounded px-4 py-2 mb-3'}, [ el('option',{}, '회사 선택'), ...["웹케시","쿠콘","비즈플레이","비플페이"].map(c=> el('option',{}, c)) ]));
-  form.appendChild(el('input',{name:'dept',class:'w-full border rounded px-4 py-2 mb-3', placeholder:'소속부서'}));
-  form.appendChild(el('input',{name:'password',type:'password',class:'w-full border rounded px-4 py-2 mb-3', placeholder:'비밀번호', required:true}));
-  form.appendChild(el('input',{name:'passwordc',type:'password',class:'w-full border rounded px-4 py-2 mb-6', placeholder:'비밀번호 확인', required:true}));
-  form.appendChild(el('button',{class:'w-full bg-sky-500 text-white py-3 rounded font-bold'}, '가입하기'));
-  card.appendChild(form);
-  card.appendChild(el('p',{class:'text-center mt-4 text-sm'}, '이미 계정이 있나요? ', el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='login'; render(); }}, '로그인')));
-
-  // 중복확인 버튼 이벤트(안전)
-  dupBtn.addEventListener('click', ()=>{
-    const email = emailInput.value.trim();
-    if(!email) return toast('이메일을 입력하세요');
-    const ok = !loadUsers().some(u=>u.email===email);
-    msg.textContent = ok ? '사용 가능한 이메일입니다' : '이미 사용 중인 이메일입니다';
-    msg.style.color = ok ? 'green' : 'red';
-    emailOk = ok;
   });
 
-  return card;
-}
-
-/* 로그인 뷰 */
-function loginView(){
-  const card = el('div',{class:'max-w-md mx-auto bg-white rounded-xl shadow p-8'});
-  card.appendChild(el('h2',{class:'text-2xl font-bold text-sky-600 mb-6 text-center'}, '로그인'));
-
-  const form = el('form',{onsubmit:e=>{
-    e.preventDefault();
-    const email = e.target.email.value.trim();
-    const pw = e.target.password.value;
-    const user = loadUsers().find(u=>u.email===email && u.password===pw);
-    if(!user) return toast('이메일 또는 비밀번호가 틀립니다');
-    saveSession({email:user.email, name:user.name});
-    state.session = {email:user.email, name:user.name};
-    state.view='list'; render();
-  }});
-  form.appendChild(el('input',{name:'email',class:'w-full border rounded px-4 py-2 mb-4', placeholder:'이메일', required:true}));
-  form.appendChild(el('input',{name:'password',type:'password',class:'w-full border rounded px-4 py-2 mb-6', placeholder:'비밀번호', required:true}));
-  form.appendChild(el('button',{class:'w-full bg-sky-500 text-white py-3 rounded font-bold'}, '로그인'));
-  card.appendChild(form);
-  card.appendChild(el('div',{class:'text-center mt-4 text-sm space-y-2'}, [
-    el('div',{}, [ el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='findId'; render(); }}, '아이디 찾기'), ' | ', el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='findPw'; render(); }}, '비밀번호 찾기') ]),
-    el('div',{}, ['계정이 없나요? ', el('span',{class:'text-sky-600 cursor-pointer', onclick:()=>{ state.view='signup'; render(); }}, '회원가입') ])
-  ]));
-  return card;
-}
-
-/* 상품 등록/수정 (통합 복원 버전) - createView 함수 안정화 및 빈화면 방지 */
-function createView(product=null){
-  const isEdit = !!product;
-  if(isEdit) product = state.products.find(p=>p.id===product.id) || product;
-  const isBidding = product?.bids?.length > 0;
-
-  const card = el('div',{class:'max-w-4xl mx-auto bg-white rounded-xl shadow p-8'});
-  card.appendChild(el('h2',{class:'text-3xl font-bold text-sky-600 mb-8 text-center'}, isEdit ? '상품 수정' : '상품 등록'));
-
-  const defaultEndDate = product?.endDate ? product.endDate.substring(0,16) : new Date(Date.now() + 7*24*3600000).toISOString().substring(0,16);
-
-  const form = el('form',{onsubmit: async e=>{
-    e.preventDefault();
-    const title = e.target.querySelector('#title')?.value.trim();
-    const desc = e.target.querySelector('#description')?.value.trim();
-    const type = e.target.querySelector('#auctionType')?.value;
-    const endDateValue = e.target.querySelector('#endDateInput')?.value;
-    const starting = parseFormattedNumber(e.target.querySelector('#startingPrice')?.value) || 0;
-    const buyNow = parseFormattedNumber(e.target.querySelector('#buyNowInput')?.value || '') || null;
-    const eventRangeStart = parseFormattedNumber(e.target.querySelector('#eventRangeStart')?.value || '') || null;
-    const eventRangeEnd = parseFormattedNumber(e.target.querySelector('#eventRangeEnd')?.value || '') || null;
-    const files = e.target.querySelector('#files')?.files || [];
-
-    if(!title) return toast('상품 제목을 입력해주세요.');
-    if(!desc) return toast('상품 설명을 입력해주세요.');
-    if(starting <= 0) return toast('시작가는 0원보다 커야 합니다.');
-    if(!endDateValue) return toast('경매 종료 일시를 설정해주세요.');
-
-    if(type === 'event'){
-      if(!eventRangeStart || !eventRangeEnd) return toast('이벤트 경매의 범위를 입력하세요.');
-      if(eventRangeStart >= eventRangeEnd) return toast('이벤트 종료가는 시작가보다 커야 합니다.');
-    }
-
-    const imgs = await uploadImg(files);
-
-    if(isEdit){
-      const p = state.products.find(item => item.id === product.id);
-      if(!p) return toast('상품을 찾을 수 없습니다.');
-      p.title = title; p.description = desc;
-      if(!isBidding){
-        p.type = type;
-        p.startingPrice = starting;
-        p.buyNow = type==='general' ? (buyNow || null) : null;
-        p.eventRangeStart = type==='event' ? eventRangeStart : null;
-        p.eventRangeEnd = type==='event' ? eventRangeEnd : null;
-        p.endDate = new Date(endDateValue).toISOString();
+  // upload image files to Supabase Storage and return array of public URLs or storage paths
+  async function uploadImages(files, productId){
+    if(!files || files.length===0) return [];
+    const out = [];
+    for(const f of Array.from(files).slice(0,3)){
+      // create a unique filename: productId_timestamp_original
+      const filename = `prod_${productId}_${Date.now()}_${f.name.replace(/\s+/g,'_')}`;
+      try {
+        const { data, error } = await supabase.storage.from(IMG_BUCKET).upload(filename, f, { cacheControl: '3600', upsert: false });
+        if(error){
+          console.warn("storage upload error", error);
+          continue;
+        }
+        // get public URL
+        const { publicURL, error: pubErr } = supabase.storage.from(IMG_BUCKET).getPublicUrl(data.path);
+        if(pubErr) { console.warn("publicUrl error", pubErr); out.push(""); }
+        else out.push(publicURL);
+      } catch(e){
+        console.warn("uploadImages exception", e);
       }
-      if(imgs.length) p.images = imgs;
-      saveProducts();
-      toast('상품 수정 완료');
-      state.view='detail'; state.detail = p; render();
-      return;
     }
+    return out;
+  }
 
-    const newProduct = {
-      id: Date.now(),
-      title, description: desc, type,
-      startingPrice: starting,
-      buyNow: type==='general' ? (buyNow || null) : null,
-      eventRangeStart: type==='event' ? eventRangeStart : null,
-      eventRangeEnd: type==='event' ? eventRangeEnd : null,
-      images: imgs.length ? imgs : [`https://placehold.co/600x400/e0f2fe/0284c7?text=${encodeURIComponent(title)}`],
-      endDate: new Date(endDateValue).toISOString(),
-      creator: state.session?.email || 'anonymous',
-      bids: [], sold:false, eventWinner:null, eventClosed:false
+  // insert product to supabase
+  async function insertProduct(payload, files){
+    // insert row first (without images), then upload images and update row with image urls
+    try{
+      const { data, error } = await supabase.from("products").insert([payload]).select().single();
+      if(error){ console.error("insert product error", error); return { error }; }
+      const product = data;
+      const uploaded = await uploadImages(files, product.id);
+      if(uploaded.length){
+        const { data:upd, error:updErr } = await supabase.from("products").update({ images: uploaded }).eq("id", product.id).select().single();
+        if(updErr) console.warn("update images error", updErr);
+      }
+      return { data: product };
+    }catch(e){ console.error("insertProduct exception", e); return { error:e }; }
+  }
+
+  // handle form submit
+  productForm.addEventListener("submit", async (ev)=>{
+    ev.preventDefault();
+    const title = document.getElementById("title").value.trim();
+    const category = document.getElementById("category").value.trim() || "일반";
+    const description = document.getElementById("description").value.trim();
+    const price_start = Number(document.getElementById("price_start").value) || 0;
+    const buy_price = Number(document.getElementById("buy_price").value) || null;
+    const type = (document.getElementById("event-fields").style.display !== "none") ? "event" : "general";
+
+    if(!title || !price_start){ alert("필수 항목을 입력하세요."); return; }
+
+    // payload
+    const payload = {
+      title, description, price_start, buy_price, type, category,
+      created_at: new Date().toISOString()
     };
-    state.products.push(newProduct);
-    saveProducts();
-    toast('상품 등록 완료');
-    state.view='list'; render();
-  }});
 
-  // form fields (built via DOM to avoid injecting user input)
-  form.appendChild(el('input',{id:'title',class:'w-full border rounded px-4 py-3 mb-4 text-lg', placeholder:'상품 제목', value: product?.title || '', required:true}));
-  form.appendChild(el('textarea',{id:'description',class:'w-full border rounded px-4 py-3 mb-6 h-40 text-lg', placeholder:'상품 설명을 자세히 적어주세요', required:true}, product?.description || ''));
+    // optimistic UI disable submit
+    const submitBtn = productForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerText = "등록중...";
 
-  form.appendChild(el('div',{class:'bg-gray-100 p-4 rounded-lg mb-6'}, [ el('p',{class:'text-sm font-bold text-red-600 mb-2'}, '📢 가격/경매 유형/종료일 변경 안내'), el('p',{class:'text-xs text-gray-700'}, isBidding ? '입찰이 발생한 상품은 경매 유형, 가격, 종료일을 변경할 수 없습니다.' : '모든 항목 수정 가능') ]));
+    const result = await insertProduct(payload, imagesInput.files);
+    if(result.error){ alert("등록 실패: " + (result.error.message || "오류")); submitBtn.disabled=false; submitBtn.innerText="등록하기"; return; }
 
-  const grid = el('div',{class:'grid grid-cols-1 md:grid-cols-2 gap-6 mb-6'});
-  const leftCol = el('div',{}, []);
-  leftCol.appendChild(el('label',{class:'block text-sm font-medium mb-2'}, '경매 유형 *'));
-  const auctionType = el('select',{id:'auctionType',class:'w-full border rounded px-4 py-3', required:true, onchange: e => toggleAuctionType(e.target.value), disabled:isBidding}, []);
-  auctionType.appendChild(el('option',{value:'general'}, '일반 경매'));
-  auctionType.appendChild(el('option',{value:'event'}, '이벤트 경매'));
-  if(product?.type === 'event') auctionType.value = 'event';
-  leftCol.appendChild(auctionType);
-  grid.appendChild(leftCol);
+    // success
+    submitBtn.disabled=false;
+    submitBtn.innerText="등록하기";
+    closeCreateModal();
+    alert("상품이 등록되었습니다.");
+    loadProducts();
+  });
 
-  const rightCol = el('div',{}, []);
-  rightCol.appendChild(el('label',{class:'block text-sm font-medium mb-2'}, '시작가 (최소 입찰 금액) *'));
-  rightCol.appendChild(el('input',{id:'startingPrice',class:'w-full border rounded px-4 py-3', placeholder:'예: 10,000', value: formatNumber(product?.startingPrice), required:true, oninput: e=>formatInput(e.target), disabled:isBidding}));
-  grid.appendChild(rightCol);
-  form.appendChild(grid);
+  // ----- BID: prevent duplicate bid amounts and duplicate insertion -----
+  // Insert bid: requires table 'bids' with columns: id (uuid), product_id (uuid), bidder (text), amount (numeric), created_at (timestamp)
+  async function placeBid(productId, bidderEmail, amount){
+    // validation
+    if(!productId || !amount) return { error: { message: "Invalid bid" } };
 
-  form.appendChild(el('div',{class:'mb-6'}, [ el('label',{class:'block text-sm font-medium mb-2'}, '경매 종료 일시 *'), el('input',{id:'endDateInput',type:'datetime-local',class:'w-full border rounded px-4 py-3', required:true, value: defaultEndDate, disabled:isBidding}), el('p',{class:'text-xs text-gray-500 mt-1'}, isBidding ? '경매 시작 후 종료일시는 수정할 수 없습니다.' : '종료 시각까지 정확히 설정해 주세요.') ]));
+    // check duplicate bid amount already exists for same product
+    const { data:existing, error: e1 } = await supabase
+      .from("bids")
+      .select("id")
+      .eq("product_id", productId)
+      .eq("amount", amount)
+      .limit(1);
+    if(e1){ return { error: e1 }; }
+    if(existing && existing.length>0){
+      return { error: { message: "이미 동일 금액으로 입찰이 존재합니다. 다른 금액으로 입찰해주세요." } };
+    }
 
-  const generalFields = el('div',{id:'generalFields', class: product?.type === 'event' ? 'hidden' : ''}, []);
-  generalFields.appendChild(el('label',{class:'block text-sm font-medium mb-2'}, '즉시구매가 (선택)'));
-  generalFields.appendChild(el('input',{id:'buyNowInput',class:'w-full border rounded px-4 py-3 mb-6', placeholder:'미입력 시 즉시구매 불가', value: formatNumber(product?.buyNow), oninput: e=>formatInput(e.target), disabled:isBidding}));
-  form.appendChild(generalFields);
+    // insert new bid
+    const payload = { product_id: productId, bidder: bidderEmail || "anonymous", amount, created_at: new Date().toISOString() };
+    const { data, error } = await supabase.from("bids").insert([payload]).select().single();
+    if(error) return { error };
+    return { data };
+  }
 
-  const eventFields = el('div',{id:'eventFields', class: product?.type === 'event' ? '' : 'hidden bg-yellow-50 p-4 rounded-lg mb-6 border border-yellow-200'}, []);
-  eventFields.appendChild(el('h3',{class:'text-lg font-bold text-yellow-800 mb-3'}, '이벤트 낙찰 범위 설정'));
-  const evGrid = el('div',{class:'grid grid-cols-2 gap-4'});
-  const evLeft = el('div',{}, [ el('label',{class:'block text-sm font-medium mb-2'}, '이벤트 시작가 (최소 낙찰 예상가) *'), el('input',{id:'eventRangeStart',class:'w-full border border-yellow-400 rounded px-4 py-3', placeholder:'예: 10,000', value: formatNumber(product?.eventRangeStart), oninput: e=>formatInput(e.target), disabled:isBidding}) ]);
-  const evRight = el('div',{}, [ el('label',{class:'block text-sm font-medium mb-2'}, '이벤트 종료가 (최대 낙찰 예상가) *'), el('input',{id:'eventRangeEnd',class:'w-full border border-yellow-400 rounded px-4 py-3', placeholder:'예: 20,000', value: formatNumber(product?.eventRangeEnd), oninput: e=>formatInput(e.target), disabled:isBidding}) ]);
-  evGrid.appendChild(evLeft); evGrid.appendChild(evRight);
-  eventFields.appendChild(evGrid);
-  eventFields.appendChild(el('p',{class:'text-xs text-gray-700 mt-2'}, '입찰자는 [시작가]와 [종료가] 사이의 금액만 입력할 수 있습니다. 당첨 금액은 범위 내에서 추첨됩니다.'));
-  form.appendChild(eventFields);
+  // ----- product detail & bidding UI -----
+  async function openProductDetail(productId){
+    // fetch product
+    const { data, error } = await supabase.from("products").select("*").eq("id", productId).single();
+    if(error){ alert("상품을 불러올 수 없습니다."); return; }
+    const p = data;
+    // build detail UI
+    const card = document.getElementById("detail-card");
+    card.innerHTML = "";
+    const img = (p.images && p.images.length) ? p.images[0] : "https://placehold.co/800x400?text=No+Image";
+    const html = `
+      <div style="display:flex; gap:18px; align-items:flex-start;">
+        <div style="flex:1; max-width:420px;">
+          <img src="${img}" style="width:100%; height:320px; object-fit:cover; border-radius:8px;" />
+        </div>
+        <div style="flex:1;">
+          <h3 style="font-size:20px; font-weight:800;">${p.title}</h3>
+          <p class="muted" style="margin-top:8px;">${p.description||''}</p>
+          <div style="margin-top:12px;">
+            <div style="font-weight:800; color:var(--accent);">시작가 ${fmt(p.price_start)}원</div>
+            ${p.buy_price ? `<div class="muted">즉시구매가 ${fmt(p.buy_price)}원</div>` : ''}
+          </div>
+          <div style="margin-top:16px;">
+            <label class="muted">입찰 금액</label>
+            <input id="bid-amount" type="number" class="w-full border rounded px-3 py-2" placeholder="원 단위로 입력" />
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button id="place-bid-btn" class="btn btn-primary">입찰하기</button>
+              ${p.buy_price ? `<button id="buy-now-btn" class="btn btn-ghost">즉시구매</button>` : ''}
+            </div>
+            <div id="bid-message" class="muted" style="margin-top:8px;"></div>
+          </div>
+        </div>
+      </div>
+    `;
+    card.insertAdjacentHTML("beforeend", html);
+    modalDetail.classList.remove("hidden");
+    modalDetail.setAttribute("aria-hidden","false");
 
-  form.appendChild(el('div',{class:'mb-8'}, [ el('label',{class:'block text-sm font-medium mb-3'}, '상품 사진 (최대 3장, 수정 시 기존 이미지 대체)'), el('input',{id:'files',type:'file',accept:'image/*',multiple:true,class:'w-full border rounded px-4 py-3'}) ]));
-
-  form.appendChild(el('button',{class:'w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-xl py-5 rounded-xl transition'}, isEdit ? '상품 수정 완료' : '상품 등록하기'));
-  card.appendChild(form);
-  // Ensure boolean attributes like 'disabled' are set correctly on actual DOM elements.
-  // (el() previously set attributes via setAttribute which ended up setting disabled="false" and causing inputs to be disabled)
-  setTimeout(()=>{
-    const ids = ['auctionType','startingPrice','endDateInput','buyNowInput','eventRangeStart','eventRangeEnd','files'];
-    ids.forEach(id => {
-      const eln = form.querySelector('#' + id);
-      if(!eln) return;
-      // Set the DOM property based on isBidding (only disable when true)
-      if(id === 'auctionType' || id === 'startingPrice' || id === 'endDateInput' || id === 'buyNowInput' || id === 'eventRangeStart' || id === 'eventRangeEnd') {
-        eln.disabled = !!isBidding;
-      }
+    // handlers
+    const bidBtn = document.getElementById("place-bid-btn");
+    bidBtn.addEventListener("click", async ()=>{
+      const amt = Number(document.getElementById("bid-amount").value);
+      if(!amt || amt <= 0){ alert("유효한 금액을 입력하세요."); return; }
+      // attempt to place bid
+      const res = await placeBid(productId, currentUser ? currentUser.email : "guest", amt);
+      if(res.error){ document.getElementById("bid-message").innerText = res.error.message || "입찰 실패"; return; }
+      document.getElementById("bid-message").innerText = "입찰 성공!";
+      loadProducts();
     });
-    // Also ensure the correct visibility for auction type sections
-    const sel = form.querySelector('#auctionType');
-    if(sel) toggleAuctionType(sel.value || 'general');
-  }, 0);
 
-
-  // toggle function
-  window.toggleAuctionType = (type) => {
-    const general = document.getElementById('generalFields');
-    const event = document.getElementById('eventFields');
-    const buyNow = document.getElementById('buyNowInput');
-    const eventStart = document.getElementById('eventRangeStart');
-    const eventEnd = document.getElementById('eventRangeEnd');
-
-    if (!general || !event) return;
-
-    if(type === 'event'){
-        general.classList.add('hidden');
-        event.classList.remove('hidden');
-
-        if(eventStart) eventStart.required = true;
-        if(eventEnd) eventEnd.required = true;
-    } else {
-        general.classList.remove('hidden');
-        event.classList.add('hidden');
-
-        if(eventStart) eventStart.required = false;
-        if(eventEnd) eventEnd.required = false;
-    }
-};
-  // initialize select
-  const auctionTypeSel = form.querySelector('#auctionType');
-  auctionTypeSel.value = product?.type || 'general';
-  setTimeout(() => toggleAuctionType(auctionTypeSel.value), 0);
-
-  return card;
-
-}
-/* 상품 목록 view */
-function listView(){
-  const wrap = el('div',{});
-  wrap.appendChild(el('h2',{class:'text-3xl font-bold text-sky-600 mb-8'}, '상품 목록'));
-  const search = el('input',{class:'w-full border rounded px-6 py-4 mb-8 text-lg', placeholder:'상품 검색', value:state.filter});
-  search.addEventListener('input', debounce(e=>{ state.filter = e.target.value; render(); }, 200));
-  wrap.appendChild(search);
-
-  const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8'});
-  loadProducts().filter(p=>p.title.toLowerCase().includes(state.filter.toLowerCase())).forEach(p=>{
-    const current = p.bids?.length ? p.bids[p.bids.length-1].price : p.startingPrice;
-    const thumb = p.images?.[0] || `https://placehold.co/400x300/e0f2fe/0284c7?text=${encodeURIComponent(p.title)}`;
-    const itemCard = el('div',{class:'bg-white rounded-2xl shadow-lg overflow-hidden cursor-pointer hover:shadow-2xl transition transform hover:-translate-y-2 p-4', role:'button', tabindex:0, onclick:()=>{ state.detail = p; state.view='detail'; render(); }});
-    itemCard.appendChild(el('img',{src:thumb, class:'w-full h-64 object-cover bg-gray-50 rounded-md', loading:'lazy', alt:p.title}))
-    // Badge row: NEW / 마감임박 / 이벤트 badges
-    const badgeRow = el('div',{class:'flex items-center space-x-2 mt-3'});
-    // New badge: created within 24 hours
-    const createdAt = new Date(p.createdAt || p.id); // fallback to id timestamp
-    const ageHours = (Date.now() - new Date(createdAt).getTime()) / 36e5;
-    if(ageHours <= 24) {
-      badgeRow.appendChild(el('span',{class:'text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-semibold'}, 'NEW'));
-    }
-    // Ending soon badge: within 24 hours
-    const remaining = new Date(p.endDate).getTime() - Date.now();
-    if(remaining > 0 && remaining <= 24*3600*1000){
-      badgeRow.appendChild(el('span',{class:'text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full font-semibold'}, '마감임박'));
-    }
-    // Event badge
-    if(p.type === 'event'){
-      badgeRow.appendChild(el('span',{class:'text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full font-semibold'}, '이벤트'));
-    }
-    itemCard.appendChild(badgeRow);
-;
-    itemCard.appendChild(el('div',{class:'mt-3 shrink-text-container', title:p.title}, [ el('div',{class:'shrink-text'}, p.title) ]));
-    itemCard.appendChild(el('div',{class:'text-2xl font-bold text-sky-600 mt-2'}, formatNumber(current) + '원'));
-    itemCard.appendChild(el('div',{class:'text-sm text-gray-500 mt-2'}, '입찰 ' + (p.bids?.length||0) + ' · 마감 ' + fmt(p.endDate)));
-    grid.appendChild(itemCard);
-  });
-  wrap.appendChild(grid);
-  return wrap;
-}
-
-/* 상세 view (원본 기능 유지) */
-function detailView(p){
-  // ensure fresh reference
-  p = state.products.find(x=>x.id===p.id) || p;
-  const currentPrice = p.bids?.length ? p.bids[p.bids.length-1].price : p.startingPrice;
-  const isCreator = p.creator === state.session?.email;
-  const isEnded = new Date(p.endDate) < new Date();
-  const userName = state.session?.email;
-
-  // 이벤트 경매 마감 처리(클라이언트 시뮬레이션; 실제는 서버 처리 필요)
-  if(p.type === 'event' && isEnded && !p.eventClosed){
-    const start = p.eventRangeStart, end = p.eventRangeEnd;
-    const validBids = p.bids.filter(b => b.price >= start && b.price <= end);
-    if(validBids.length > 0){
-      const randomIndex = Math.floor(Math.random() * validBids.length);
-      const winnerBid = validBids[randomIndex];
-      p.eventWinner = winnerBid.user;
-      p.sold = true;
-      p.winningPrice = winnerBid.price;
-    }
-    p.eventClosed = true;
-    saveProducts();
-  }
-
-  // 일반 경매 당첨 처리
-  if(p.type === 'general' && isEnded && !p.sold){
-    if(p.bids.length > 0){
-      p.winner = p.bids[p.bids.length-1].user;
-      p.sold = true;
-      p.winningPrice = currentPrice;
-      saveProducts();
+    const buyNow = document.getElementById("buy-now-btn");
+    if(buyNow){
+      buyNow.addEventListener("click", async ()=>{
+        // immediate purchase — creating a bid with buy_price or mark as sold (implementation depends on DB)
+        if(!confirm("즉시구매하시면 거래가 바로 완료됩니다. 계속 진행하시겠습니까?")) return;
+        const amt = p.buy_price || 0;
+        const res = await placeBid(productId, currentUser ? currentUser.email : "guest", amt);
+        if(res.error) alert("즉시구매 실패: " + (res.error.message || ''));
+        else { alert("즉시구매 완료"); loadProducts(); modalDetail.classList.add("hidden"); }
+      });
     }
   }
 
-  // event 하루 입찰 확인
-  const isEventBidToday = p.type === 'event' && p.bids.some(b => b.user === userName && fmtDate(b.time) === fmtDate(new Date()));
-  const winnerEmail = p.type === 'event' ? p.eventWinner : p.winner;
-  const winnerName = winnerEmail ? getUserName(winnerEmail) : null;
-  const isWinner = winnerEmail === userName;
-
-  const container = el('div',{class:'max-w-6xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden p-6'});
-  const grid = el('div',{class:'grid md:grid-cols-2 gap-8 p-8'});
-
-  // left: images
-  const left = el('div',{});
-  const mainImg = el('img',{src:p.images?.[0] || 'https://placehold.co/600x400', id:'mainImg', class:'w-full h-96 object-contain bg-gray-50 rounded'});
-  left.appendChild(mainImg);
-  if(p.images?.length > 1){
-    const thumbs = el('div',{class:'flex gap-3 mt-4 flex-wrap'});
-    p.images.forEach((img,i)=> {
-      const t = el('img',{src:img,class:`w-24 h-24 object-cover rounded cursor-pointer border-2 ${i===0 ? 'border-sky-500' : 'border-gray-300'}`, alt:'thumb', loading:'lazy'});
-      t.addEventListener('click', ()=> document.getElementById('mainImg').src = img);
-      thumbs.appendChild(t);
-    });
-    left.appendChild(thumbs);
-  }
-  grid.appendChild(left);
-
-  // right: info + bid UI
-  const right = el('div',{});
-  right.appendChild(el('h1',{class:'text-4xl font-bold mb-4'}, p.title));
-  right.appendChild(el('p',{class:'text-gray-600 mb-6 leading-relaxed whitespace-pre-line'}, p.description || '설명 없음'));
-
-  // price display
-  const priceDisplay = el('div',{class:'grid grid-cols-3 gap-4 mb-8'});
-  priceDisplay.appendChild(el('div',{class:'bg-gray-100 p-3 rounded-lg border border-gray-200'}, [ el('div',{class:'text-sm text-gray-600 font-medium'}, '시작가'), el('div',{class:'text-lg font-bold text-gray-800'}, formatNumber(p.startingPrice) + '원') ]));
-  if(p.type==='general' && p.buyNow){
-    priceDisplay.appendChild(el('div',{class:'bg-blue-100 p-3 rounded-lg border border-blue-300'}, [ el('div',{class:'text-sm text-blue-800 font-medium'}, '즉시구매가'), el('div',{class:'text-lg font-bold text-blue-900'}, formatNumber(p.buyNow)+'원') ]));
-  } else if(p.type === 'event'){
-    priceDisplay.appendChild(el('div',{class:'bg-yellow-100 p-3 rounded-lg border border-yellow-300'}, [ el('div',{class:'text-sm text-yellow-800 font-medium'}, '입찰 범위'), el('div',{class:'text-lg font-bold text-yellow-900'}, formatNumber(p.eventRangeStart) + '원 ~ ' + formatNumber(p.eventRangeEnd) + '원') ]));
-  } else {
-    priceDisplay.appendChild(el('div',{class:'bg-gray-100 p-3 rounded-lg border border-gray-200'}, [ el('div',{class:'text-sm text-gray-600 font-medium'}, '즉시구매'), el('div',{class:'text-lg font-bold text-gray-400'}, '없음') ]));
-  }
-  priceDisplay.appendChild(el('div',{class:'bg-sky-100 p-3 rounded-lg border border-sky-300'}, [ el('div',{class:'text-sm text-sky-800 font-medium'}, p.type==='event' ? '최고 입찰가' : '현재 입찰가'), el('div',{class:'text-2xl font-extrabold text-sky-900'}, formatNumber(currentPrice) + '원') ]));
-  right.appendChild(priceDisplay);
-
-  // timer
-  right.appendChild(el('div',{class:'text-xl mb-6', id:'timer', 'data-enddate':p.endDate}, ''));
-
-  // status message (낙찰/유찰 안내)
-  if(isEnded){
-    if(p.sold){
-      const price = p.winningPrice || currentPrice;
-      const msgWrap = el('div',{class:'text-center bg-green-100 p-6 rounded-xl border-2 border-green-500 mb-8'});
-      msgWrap.appendChild(el('div',{class:'text-3xl font-bold text-green-600 mb-3'}, isWinner ? `🎉 축하합니다! ${p.type === 'general' ? '낙찰' : '당첨'}되셨습니다.` : `${p.type === 'general' ? '낙찰' : '당첨'} 종료: ${winnerName}님 ${p.type === 'general' ? '낙찰' : '당첨'}`));
-      if(isWinner){
-        const info = el('div',{class:'mt-4 text-left text-gray-700 space-y-2 text-sm'});
-        info.appendChild(el('p',{}, '최종 금액: ' + formatNumber(price) + '원'));
-        info.appendChild(el('p',{}, '제품 수령 안내: 경매물품 전달 및 지불 방식은 위카페에서 직거래로 이루어지며, 자세한 정보는 판매자가 채팅으로 안내 예정입니다.'));
-        msgWrap.appendChild(info);
-      }
-      right.appendChild(msgWrap);
-    } else {
-      right.appendChild(el('div',{class:'text-4xl font-bold text-red-600 mb-8 text-center'}, '경매 종료 (유찰)'));
-    }
-  }
-
-  // 입찰 UI (진행중일 때만)
-  if(!isEnded && !p.sold){
-    if(!state.session){
-      right.appendChild(el('div',{class:'text-xl text-gray-500 mb-8'}, '로그인 후 입찰 가능합니다.'));
-    } else if(isCreator){
-      right.appendChild(el('div',{class:'bg-gray-100 p-4 rounded text-center text-xl text-gray-500 mb-8'}, '내가 올린 상품입니다.'));
-    } else if(p.type === 'event' && isEventBidToday){
-      right.appendChild(el('div',{class:'bg-red-100 p-4 rounded text-center text-xl text-red-600 font-bold mb-8'}, '오늘은 이미 입찰하셨습니다. 내일 다시 도전하세요!'));
-    } else {
-      const amtInput = el('input',{type:'text',id:'bidAmount',class:'w-full border-2 border-sky-500 rounded-xl px-6 py-5 text-2xl text-center mb-4', placeholder: p.type==='event' ? `${formatNumber(p.eventRangeStart)} ~ ${formatNumber(p.eventRangeEnd)}` : formatNumber(currentPrice + 1000)});
-      amtInput.addEventListener('input', (e)=>{ e.target.value = e.target.value.replace(/[^0-9]/g,'').replace(/\B(?=(\d{3})+(?!\d))/g, ','); });
-      right.appendChild(amtInput);
-      const bidBtn = el('button',{class:'w-full bg-sky-600 hover:bg-sky-700 text-white font-bold text-2xl py-6 rounded-xl transition mb-3', onclick:()=> placeBid(p.id) }, p.type==='event' ? '이벤트 입찰 (오늘 1회 가능)' : '입찰하기');
-      right.appendChild(bidBtn);
-      if(p.type === 'general' && p.buyNow){
-        right.appendChild(el('button',{class:'w-full bg-red-600 hover:bg-red-700 text-white font-bold text-2xl py-6 rounded-xl transition', onclick:()=> handleBuyNow(p.id)}, '즉시구매 ' + formatNumber(p.buyNow) + '원'));
-      }
-    }
-  }
-
-  // 입찰 내역
-  const bidsSection = el('div',{class:'mt-10'});
-  bidsSection.appendChild(el('h3',{class:'text-2xl font-bold mb-4'}, '입찰 내역'));
-  const bidsList = el('div',{class:'space-y-3 max-h-96 overflow-y-auto'});
-  if(p.bids && p.bids.length){
-    p.bids.slice().reverse().forEach(b=>{
-      const row = el('div',{class:'flex justify-between p-4 bg-gray-50 rounded-xl'}, []);
-      const leftName = el('div',{}, getMaskedName(b.user) + (b.user === state.session?.email ? ' ' : ''));
-      if(b.user === state.session?.email) leftName.appendChild(el('span',{class:'text-sky-600 text-xs font-bold'}, ' (나)'));
-      const rightInfo = el('div',{class:'text-right'}, [ el('div',{class:'font-bold text-sky-600'}, formatNumber(b.price) + '원'), el('div',{class:'text-sm text-gray-500'}, fmt(b.time)) ]);
-      row.appendChild(leftName); row.appendChild(rightInfo);
-      bidsList.appendChild(row);
-    });
-  } else {
-    bidsList.appendChild(el('p',{class:'text-center text-gray-500 py-8'}, '아직 입찰이 없습니다. 첫 입찰자가 되어보세요!'));
-  }
-  bidsSection.appendChild(bidsList);
-
-  grid.appendChild(right);
-  container.appendChild(grid);
-  container.appendChild(bidsSection);
-  return container;
-}
-
-/* 내입찰 */
-function myBidsView(){
-  const wrap = el('div',{});
-  const myBidProducts = state.products.filter(p => p.bids.some(b => b.user === state.session?.email));
-  wrap.appendChild(el('h2',{class:'text-3xl font-bold text-sky-600 mb-8'}, '내 입찰 내역'));
-  if(myBidProducts.length === 0){
-    wrap.appendChild(el('p',{class:'text-center text-gray-500 py-10 bg-white rounded-xl shadow'}, '아직 입찰한 상품이 없습니다.'));
-    return wrap;
-  }
-  const grid = el('div',{class:'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6'});
-  myBidProducts.forEach(p=>{
-    const myBids = p.bids.filter(b=>b.user===state.session.email);
-    const myLastBid = myBids[myBids.length-1];
-    const current = p.bids[p.bids.length-1].price;
-    let statusBadge = '';
-    let borderColor = 'border-gray-300';
-    const isEnded = new Date(p.endDate) < new Date();
-
-    if(p.type === 'event'){
-      if(isEnded){
-        if(p.eventWinner === state.session.email){
-          statusBadge = '🎉 당첨';
-          borderColor = 'border-green-500';
-        } else {
-          statusBadge = '❌ 낙첨';
-          borderColor = 'border-red-500';
-        }
-      } else {
-        statusBadge = `입찰 ${myBids.length}회`;
-        borderColor = 'border-blue-500';
-      }
-    } else {
-      if(isEnded){
-        if(p.winner === state.session.email){
-          statusBadge = '🎉 낙찰';
-          borderColor = 'border-green-500';
-        } else {
-          statusBadge = '❌ 유찰';
-          borderColor = 'border-red-500';
-        }
-      } else {
-        const isWinning = myLastBid.price === current;
-        statusBadge = isWinning ? '현재 최고가!' : '입찰 밀림';
-        borderColor = isWinning ? 'border-green-300' : 'border-red-300';
-      }
-    }
-
-    const item = el('div',{class:`bg-white rounded-xl shadow p-6 border-l-4 ${borderColor} cursor-pointer`, onclick:()=>{ state.detail=p; state.view='detail'; render(); }}, []);
-    item.appendChild(el('div',{class:'font-bold text-lg mb-2 truncate'}, p.title));
-    const content = el('div',{class:'flex justify-between items-center'});
-    const left = el('div',{}, [ el('div',{class:'text-sm text-gray-500'}, '내 최종 입찰가'), el('div',{class:'font-bold text-xl'}, formatNumber(myLastBid.price) + '원') ]);
-    const right = el('div',{class:'text-right space-y-1'}, [ el('div',{}, statusBadge), el('div',{class:'text-sm text-gray-400'}, '현재가 ' + formatNumber(current) + '원') ]);
-    content.appendChild(left); content.appendChild(right);
-    item.appendChild(content);
-    grid.appendChild(item);
-  });
-  wrap.appendChild(grid);
-  return wrap;
-}
-
-/* 내판매 */
-function mySalesView(){
-  const wrap = el('div',{});
-  const myProducts = state.products.filter(p => p.creator === state.session?.email);
-  wrap.appendChild(el('h2',{class:'text-3xl font-bold text-sky-600 mb-8'}, '내 판매 관리'));
-  if(myProducts.length === 0){
-    wrap.appendChild(el('p',{class:'text-center text-gray-500 py-10 bg-white rounded-xl shadow'}, '등록한 상품이 없습니다. 상품을 등록해보세요!'));
-    return wrap;
-  }
-
-  const list = el('div',{class:'space-y-4'});
-  list.appendChild(el('div',{class:'hidden sm:grid grid-cols-7 gap-4 text-sm font-bold text-gray-600 p-4 bg-gray-200 rounded-t-xl'}, [ 
-    el('div',{}, '상품 정보'),
-    el('div',{}, '경매 유형'),
-    el('div',{}, '시작가'),
-    el('div',{}, '현재 입찰가'),
-    el('div',{}, '낙찰가'),
-    el('div',{}, '상태 / 관리')
-  ]));
-
-  myProducts.forEach(p=>{
-    const currentPrice = p.bids.length ? p.bids[p.bids.length-1].price : p.startingPrice;
-    const winningPrice = p.sold && p.winningPrice ? formatNumber(p.winningPrice)+'원' : '-';
-    let status = '';
-    const isEnded = new Date(p.endDate) < new Date();
-    const isBidding = p.bids.length > 0;
-    const auctionTypeLabel = p.type === 'event' ? '이벤트' : '일반';
-
-    if(isEnded){
-      if(p.sold) status = el('span',{class:'bg-green-500 text-white px-2 py-1 rounded text-xs font-bold'}, p.type === 'event' ? '당첨 완료' : '낙찰 완료');
-      else status = el('span',{class:'bg-red-500 text-white px-2 py-1 rounded text-xs font-bold'}, '유찰');
-    } else {
-      status = el('span',{class:'text-gray-500 text-sm'}, timeLeft(p.endDate));
-    }
-
-    const actions = el('div',{class:'flex gap-2 justify-end'});
-    actions.appendChild(el('button',{class:'text-blue-500 text-sm hover:underline', onclick:e=>{ e.stopPropagation(); state.detail=p; state.view='edit'; render(); }}, '수정'));
-    if(!isBidding) actions.appendChild(el('button',{class:'text-red-500 text-sm hover:underline', onclick:e=>{ e.stopPropagation(); deleteProduct(p.id); }}, '삭제'));
-    else actions.appendChild(el('span',{class:'text-gray-400 text-sm'}, '수정/삭제 불가'));
-
-    const itemDiv = el('div',{class:'bg-white rounded-xl shadow p-4 flex flex-col sm:grid sm:grid-cols-7 gap-4 items-center cursor-pointer hover:bg-gray-50', onclick:()=>{ state.detail=p; state.view='detail'; render(); }});
-    // 상품 정보
-    const info = el('div',{class:'col-span-2 flex items-center gap-3 w-full'});
-    info.appendChild(el('img',{src:p.images?.[0]||'https://placehold.co/100', class:'w-16 h-16 rounded object-cover', alt:p.title, loading:'lazy'}));
-    const infoText = el('div',{class:'truncate flex-1'}, []);
-    infoText.appendChild(el('div',{class:'font-bold text-base truncate'}, p.title));
-    infoText.appendChild(el('div',{class:'text-xs text-gray-500'}, '입찰 ' + p.bids.length + '건'));
-    info.appendChild(infoText);
-    itemDiv.appendChild(info);
-    itemDiv.appendChild(el('div',{class:'text-right sm:text-center w-full sm:w-auto text-sm font-medium border-t sm:border-t-0 pt-2 sm:pt-0'}, auctionTypeLabel));
-    itemDiv.appendChild(el('div',{class:'text-right w-full sm:w-auto text-sm border-t sm:border-t-0 pt-2 sm:pt-0'}, formatNumber(p.startingPrice)+'원'));
-    itemDiv.appendChild(el('div',{class:'text-right w-full sm:w-auto text-sm font-bold text-sky-600 border-t sm:border-t-0 pt-2 sm:pt-0'}, formatNumber(currentPrice)+'원'));
-    itemDiv.appendChild(el('div',{class:`text-right w-full sm:w-auto text-sm font-bold border-t sm:border-t-0 pt-2 sm:pt-0 ${p.sold ? 'text-green-600' : 'text-gray-400'}`}, winningPrice));
-    const statusActionDiv = el('div',{class:'col-span-2 text-right w-full border-t sm:border-t-0 pt-2 sm:pt-0 space-y-1'});
-    statusActionDiv.appendChild(status);
-    statusActionDiv.appendChild(actions);
-    itemDiv.appendChild(statusActionDiv);
-    list.appendChild(itemDiv);
+  // close detail when clicked outside
+  modalDetail.addEventListener("click", (ev)=> {
+    if(ev.target === modalDetail) modalDetail.classList.add("hidden");
   });
 
-  wrap.appendChild(list);
-  return wrap;
-}
-
-/* 이미지 업로드 더미 (원본 유지: placeholder urls) */
-const uploadImg = (files) => new Promise(resolve=>{
-  const urls = Array.from(files).map((f,i)=>`https://placehold.co/600x400/e0f2fe/0284c7?text=Image+${i+1}`);
-  setTimeout(()=> resolve(urls), 400);
-});
-
-/* 자동 하이픈 (휴대폰) */
-function autoHyphen(target){
-  target.value = target.value.replace(/[^0-9]/g,'').replace(/^(\d{2,3})(\d{3,4})(\d{4})$/, `$1-$2-$3`);
-}
-
-/* 자동 로그인 (데모 전용) — DEMO 플래그로 제어 */
-const DEMO = true;
-loadSession();
-if(DEMO && !state.session){
-  const demoUser = loadUsers().find(u=>u.email==='demo@user.com');
-  if(demoUser){
-    saveSession({email:demoUser.email, name:demoUser.name});
-    state.session = {email:demoUser.email, name:demoUser.name};
-    state.view='list';
-  }
-}
-
-/* 텍스트 크기 조정 (긴 제목) */
-function adjustTextSizes(){
-  document.querySelectorAll('.shrink-text-container').forEach(container=>{
-    const textElement = container.querySelector('.shrink-text');
-    if(!textElement) return;
-    // CSS multiline clamp used; nothing to do here for now
+  // delegation: open product detail when clicking card links
+  productGrid.addEventListener("click", (ev)=>{
+    const a = ev.target.closest("a");
+    if(!a) return;
+    ev.preventDefault();
+    const href = a.getAttribute("href");
+    const m = href && href.match(/id=([^&]+)/);
+    if(m) openProductDetail(m[1]);
   });
-}
 
-/* 유틸: get user name / masked name */
-function getUserName(email){ return loadUsers().find(u=>u.email===email)?.name || '익명'; }
-function getMaskedName(email){
-  const name = getUserName(email);
-  if(!name) return '익명';
-  if(name.length > 1) return name[0] + '*'.repeat(Math.max(0, name.length - 2)) + name[name.length - 1];
-  return name;
-}
+  // ----- initialize (load products and realtime) -----
+  (async function init(){
+    await loadProducts();
+    setupRealtime();
+  })();
 
-/* 입찰 처리 */
-function placeBid(id){
-  if(!state.session) return toast('로그인 후 입찰하세요');
-  const product = state.products.find(item => item.id === id);
-  if(!product) return toast('상품을 찾을 수 없습니다.');
-  const amountStr = document.getElementById('bidAmount')?.value || '';
-  const amount = parseFormattedNumber(amountStr);
-  if(!amount || amount <= 0) return toast('입찰가를 정확히 입력해주세요.');
-
-  if(product.type === 'event'){
-    // Duplicate bid prevention
-    if(product.bids.some(b => b.price === amount)){
-        return toast('이미 선택된 금액입니다. 다른 금액을 입력하세요.');
-    }
-
-    const isEventBidToday = product.bids.some(b => b.user === state.session.email && fmtDate(b.time) === fmtDate(new Date()));
-    if(isEventBidToday) return toast('이벤트 경매는 하루에 한 번만 입찰할 수 있습니다.');
-    const start = product.eventRangeStart, end = product.eventRangeEnd;
-    if(amount < start || amount > end) return toast(`이벤트 경매는 ${formatNumber(start)}원부터 ${formatNumber(end)}원 사이의 금액만 입찰 가능합니다.`);
-  } else {
-    const current = product.bids?.length ? product.bids[product.bids.length-1].price : product.startingPrice;
-    if(amount <= current) return toast('현재 최고가보다 높은 금액으로 입찰하세요.');
-  }
-
-  product.bids.push({user: state.session.email, price: amount, time: new Date().toISOString()});
-  saveProducts();
-  toast('입찰이 완료되었습니다!');
-  render();
-}
-
-/* 즉시구매 처리 (네이밍 충돌 방지: handleBuyNow) */
-function handleBuyNow(id){
-  if(!state.session) return toast('로그인 후 이용하세요');
-  const product = state.products.find(item => item.id === id);
-  if(!product || !product.buyNow) return toast('즉시구매 불가');
-  if(confirm(`즉시구매 ${formatNumber(product.buyNow)}원 하시겠습니까?`)){
-    product.sold = true;
-    product.winner = state.session.email;
-    product.winningPrice = product.buyNow;
-    product.bids.push({user: state.session.email, price: product.buyNow, time: new Date().toISOString()});
-    saveProducts();
-    toast('즉시구매 완료! 축하합니다.');
-    render();
-  }
-}
-
-/* 상품 삭제 */
-function deleteProduct(id){
-  if(!confirm('정말로 이 상품을 삭제하시겠습니까? (되돌릴 수 없습니다)')) return;
-  state.products = state.products.filter(p => p.id !== id);
-  saveProducts();
-  toast('상품이 삭제되었습니다.');
-  state.view='mySales';
-  render();
-}
-
-/* ==================================================
-   초기 렌더
-   ================================================== */
-render();
+  // Optional: expose some functions for debugging
+  window._wn = { loadProducts, openCreateModal, closeCreateModal, openProductDetail };
 
 </script>
+
 </body>
 </html>
