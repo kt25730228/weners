@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>WeNers 실시간 입찰</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+body { font-family: Arial;width:700px;margin:30px auto;}
+.item {border-bottom:1px solid #ddd;padding:10px 0;}
+.item h3 {margin:5px 0;}
+</style>
+</head>
+<body>
+
+<h2>🔷 위너스 실시간 경매 (로그인)</h2>
+<button onclick="logout()">🚪 로그아웃</button>
+<button onclick="location.href='create_with_image_upload_auth.html'">📌 상품 등록</button>
+<hr>
+
+<div id="list"></div>
+
+<script>
+// 📌 Supabase client
+const supabase = supabase.createClient(
+ "https://YOUR-PROJECT.supabase.co",
+ "YOUR-ANON-KEY"
+);
+
+// 로그인 체크
+supabase.auth.getSession().then(({data})=>{
+ if(!data.session) { alert("로그인 필요"); location.href="auth_login.html"; }
+ loadProducts();
+ subscribeRealtime();   // 실시간 입찰 반영
+});
+
+// 🔥 실시간 구독
+function subscribeRealtime(){
+ supabase.channel("realtime:bids")
+ .on("postgres_changes",{event:"INSERT",schema:"public",table:"bids"}, loadProducts)
+ .subscribe();
+}
+
+// 상품 불러오기
+async function loadProducts(){
+ const { data, error } = await supabase.from("products").select("*");
+ if(error) return alert("불러오기 실패");
+
+ list.innerHTML="";
+ data.forEach(p=>{
+    list.innerHTML+=`
+    <div class="item">
+    <h3>${p.title}</h3>
+    <p>${p.description||""}</p>
+    <img src="${p.images}" width="200"><br>
+    💰 시작가: ${p.price_start}원 <br>
+    ⚡ 즉시구매: ${p.price_end||"-"}<br><br>
+    
+    <input id="bid_${p.id}" type="number" placeholder="입찰가 입력">
+    <button onclick="bid('${p.id}')">입찰</button>
+    </div>`;
+ });
+}
+
+// 입찰 요청
+async function bid(id){
+ const price = Number(document.getElementById(`bid_${id}`).value);
+ const user = (await supabase.auth.getUser()).data.user;
+
+ await supabase.from("bids").insert({
+    product_id:id,
+    price:price,
+    bidder:user.email
+ });
+ alert("입찰 완료!");
+}
+
+// 로그아웃
+function logout(){
+ supabase.auth.signOut();
+ alert("로그아웃됨");
+ location.href="auth_login.html";
+}
+
+</script>
+</body>
+</html>
