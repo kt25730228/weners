@@ -163,7 +163,6 @@
     <!-- populated dynamically -->
   </div>
 </div>
-
 <!-- JS: Supabase 연결 및 기능 통합 -->
 <script type="module">
   // -------------- Supabase config (from your earlier provided data) --------------
@@ -287,11 +286,9 @@
   // ----- create product modal handling -----
   function openCreateModal(){
     modalCreate.classList.remove("hidden");
-    modalCreate.setAttribute("aria-hidden", "false");
   }
   function closeCreateModal(){
     modalCreate.classList.add("hidden");
-    modalCreate.setAttribute("aria-hidden", "true");
     productForm.reset();
     previewList.innerHTML = "";
     document.getElementById("event-fields").style.display = "none";
@@ -333,7 +330,7 @@
     const out = [];
     for(const f of Array.from(files).slice(0,3)){
       // create a unique filename: productId_timestamp_original
-      const filename = `prod_${productId}_${Date.now()}_${f.name.replace(/\s+/g,'_')}`;
+      const filename = `prod_${productId}_${Date.now()}_${f.name.replace(/\\s+/g,'_')}`;
       try {
         const { data, error } = await supabase.storage.from(IMG_BUCKET).upload(filename, f, { cacheControl: '3600', upsert: false });
         if(error){
@@ -350,7 +347,6 @@
     }
     return out;
   }
-
   // insert product to supabase
   async function insertProduct(payload, files){
     // insert row first (without images), then upload images and update row with image urls
