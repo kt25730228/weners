@@ -1,518 +1,416 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WeNers – 실시간 경매</title>
-<script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>WeNers — 실시간 경매</title>
 
-<!-- 🔥 여기 추가 -->
-<script src="./config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script>
-(초기화 코드)
-</script>
+  <!-- config.js 는 public/config.js 로 이미 존재 (window.SUPABASE_URL / window.SUPABASE_ANON_KEY) -->
+  <script src="./config.js"></script>
 
-<style>
-  /* 핵심 스타일 (원본 UI 느낌 재현) */
-  :root { --accent: #06b6d4; --muted: #6b7280; --bg:#f8fafc; }
-  body { font-family: Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#0f172a; }
-  header { background: white; box-shadow: 0 4px 20px rgba(2,6,23,0.06); }
-  .container { max-width:1100px; margin:0 auto; padding:20px; }
-  .hero { padding:56px 20px; border-radius:12px; background:linear-gradient(135deg,#0ea5e9 0%, #06b6d4 100%); color:white; display:flex; align-items:center; justify-content:space-between; gap:20px; }
-  .hero h1 { font-size:36px; line-height:1.05; margin:0; font-weight:800; }
-  .hero p { margin:8px 0 0; color:rgba(255,255,255,0.9); }
-  .btn { display:inline-block; padding:10px 16px; border-radius:10px; font-weight:700; text-decoration:none; }
-  .btn-primary { background:white; color:#06b6d4; }
-  .btn-ghost { background:transparent; border:2px solid rgba(255,255,255,0.18); color:white; }
+  <!-- Tailwind via CDN (개발용) -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
-  /* floating badges */
-  .floating { display:flex; gap:12px; }
-  .badge { background:white; color:#0f172a; padding:10px 14px; border-radius:12px; font-weight:700; box-shadow:0 6px 18px rgba(2,6,23,0.08); transform-origin:center; animation:float 3.2s ease-in-out infinite; }
-  .badge:nth-child(2){ animation-delay:0.25s;}
-  .badge:nth-child(3){ animation-delay:0.5s;}
-  @keyframes float { from { transform: translateY(0);} to { transform: translateY(-14px);} }
+  <style>
+    /* 기본 스타일 — 원본 느낌 유지하려 노력함 */
+    :root { --accent:#06b6d4; --bg:#f8fcff; --muted:#6b7280; }
+    html,body{height:100%}
+    body{font-family:Inter, "Noto Sans KR", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#0f172a}
+    header{background:white; box-shadow:0 4px 20px rgba(2,6,23,0.06); position:sticky; top:0; z-index:40}
+    .container{max-width:1100px; margin:0 auto; padding:20px}
+    .nav {display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .logo {font-size:20px; font-weight:800; color:var(--accent)}
+    .nav-right {display:flex; gap:10px; align-items:center}
+    .btn {padding:8px 14px; border-radius:10px; font-weight:600; cursor:pointer; border:none}
+    .btn-primary {background:var(--accent); color:white}
+    .btn-ghost {background:transparent; color:var(--accent); border:1px solid rgba(6,182,212,0.12)}
+    /* Hero */
+    .hero {padding:56px 20px; border-radius:12px; background: linear-gradient(130deg,#0ea5e9 0%, #06b6d4 100%); color:white; display:flex; align-items:center; justify-content:space-between; gap:20px}
+    .hero h1{font-size:46px; line-height:1; margin:0; font-weight:800}
+    .hero p{margin:8px 0 0; color:rgba(255,255,255,0.9); font-weight:500}
+    /* floating badges */
+    .floating {display:flex; gap:12px}
+    .badge {background:white; color:#0f172a; padding:8px 12px; border-radius:12px; font-weight:700; box-shadow:0 6px 18px rgba(2,6,23,0.06); transform-origin:center; animation:float 3.2s ease-in-out infinite}
+    .badge:nth-child(2){animation-delay:0.25s} .badge:nth-child(3){animation-delay:0.5s}
+    @keyframes float {0%{transform:translateY(0)}50%{transform:translateY(-14px)}100%{transform:translateY(0)}}
 
-  /* product grid */
-  .grid { display:grid; grid-template-columns: repeat(1, minmax(0,1fr)); gap:18px; }
-  @media(min-width:640px){ .grid { grid-template-columns: repeat(2, 1fr); } }
-  @media(min-width:1024px){ .grid { grid-template-columns: repeat(3, 1fr); } }
-  .card { background:white; border-radius:12px; overflow:hidden; box-shadow:0 4px 18px rgba(2,6,23,0.06); transition:transform .15s ease, box-shadow .15s ease; }
-  .card:hover { transform: translateY(-6px); box-shadow:0 12px 40px rgba(2,6,23,0.09); }
-  .card-img { width:100%; height:220px; object-fit:cover; background:#f3f4f6; }
-  .card-body { padding:14px; }
-  .card-title { font-weight:700; font-size:16px; }
-  .muted { color:var(--muted); font-size:13px; }
+    /* products */
+    .grid {display:grid; grid-template-columns: repeat(1,1fr); gap:18px; margin-top:28px}
+    @media(min-width:640px){ .grid {grid-template-columns:repeat(2,1fr)} }
+    @media(min-width:1024px){ .grid {grid-template-columns:repeat(3,1fr)} }
+    .card {background:white; border-radius:12px; overflow:hidden; box-shadow:0 6px 18px rgba(2,6,23,0.06); transition:transform .15s ease, box-shadow .15s ease}
+    .card:hover {transform:translateY(-6px); box-shadow:0 24px 48px rgba(2,6,23,0.08);}
+    .card .img {height:180px; background:linear-gradient(90deg,#eef2ff,#f8fcff); display:flex; align-items:center; justify-content:center; color:#94a3b8}
+    .card .body {padding:14px}
+    .price {font-weight:800; color:var(--accent); font-size:18px}
 
-  /* form modal (simple) */
-  .modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(2,6,23,0.45); z-index:1000; padding:20px; }
-  .modal-card { width:100%; max-width:720px; background:white; border-radius:10px; padding:18px; }
+    /* modal */
+    .modal-backdrop{position:fixed; inset:0; background:rgba(2,6,23,0.45); display:flex; align-items:center; justify-content:center; z-index:60}
+    .modal{background:white; border-radius:12px; width:min(720px,95%); padding:18px}
 
-  /* small helpers */
-  .hidden { display:none; }
-  .text-danger { color:#dc2626; }
-</style>
+    footer{padding:28px 20px; color:var(--muted); font-size:14px}
+    .muted{color:var(--muted)}
+    /* small helpers */
+    .hidden{display:none}
+  </style>
 </head>
+<body class="min-h-screen">
 
-<header>
-  <div class="container flex items-center justify-between">
-    <div>
-      <a href="#" style="font-weight:800; color:var(--accent); font-size:20px;">WeNers</a>
-      <span class="muted" style="margin-left:8px; font-weight:600;">— 작은 거래도 즐거운 경매</span>
+  <!-- Header / Nav -->
+  <header>
+    <div class="container nav">
+      <div class="left">
+        <span class="logo">💎 위너스 (WeNers)</span>
+      </div>
+      <div class="nav-right">
+        <nav class="muted" aria-label="main nav">
+          <a href="#" onclick="scrollToSection('home');return false" class="muted">홈</a>
+          <a href="#" onclick="scrollToSection('products');return false" class="muted" style="margin-left:12px">상품</a>
+        </nav>
+        <div style="width:12px"></div>
+        <button id="btn-login" class="btn btn-ghost">로그인</button>
+        <button id="btn-register" class="btn btn-ghost">회원가입</button>
+        <button id="btn-create" class="btn btn-primary">상품등록</button>
+      </div>
     </div>
-    <nav>
-      <a id="login-link" class="muted" href="auth_login.html" style="margin-right:12px;">로그인</a>
-      <a id="signup-link" class="muted" href="auth_signup.html" style="margin-right:12px;">회원가입</a>
-      <a href="#" id="open-create" class="btn btn-primary">상품 등록</a>
-    </nav>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container" id="home">
+
+    <!-- Hero / Main Banner -->
+    <section class="hero" style="margin-top:18px; align-items:center;">
+      <div style="flex:1;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <div class="badge" style="background:rgba(255,255,255,0.12); color:white;">🔥 오늘 등록된 신규상품이 <strong id="todayCount">0</strong>개 있습니다.</div>
+        </div>
+        <h1>작은 거래도 즐거운 경매로</h1>
+        <p style="font-size:18px; margin-top:8px;">
+          위너스에서 <span id="slogan">팔래? 말래? <strong style="color:yellow">살래? 말래?</strong></span>
+        </p>
+        <div style="margin-top:18px; display:flex; gap:12px;">
+          <button class="btn btn-ghost" onclick="scrollToSection('products')">구경하러 가기</button>
+          <button class="btn btn-primary" id="hero-create">상품 등록</button>
+        </div>
+      </div>
+
+      <div style="width:320px; display:flex; flex-direction:column; align-items:flex-end;">
+        <div class="floating">
+          <div class="badge">Book</div>
+          <div class="badge">Doll</div>
+          <div class="badge">Living</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Products list -->
+    <section id="products" style="margin-top:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin:0">상품 목록</h2>
+        <div class="muted">WeNers — Demo</div>
+      </div>
+
+      <div id="productList" class="grid">
+        <!-- JS 렌더링 -->
+      </div>
+
+      <div id="emptyNotice" style="margin-top:22px; padding:14px; background:white; border-radius:8px; display:none; box-shadow:0 6px 18px rgba(2,6,23,0.04);">
+        현재 상품이 없습니다.
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      © WeNers — 작은 거래도 즐거운 경매 · 데모
+    </div>
+  </footer>
+
+  <!-- Modal: Product detail / Bid -->
+  <div id="modalBackdrop" class="hidden">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h3 id="modalTitle">상품 상세</h3>
+        <button onclick="closeModal()" class="btn">닫기</button>
+      </div>
+      <div id="modalContent" style="margin-top:12px;">
+        <!-- JS 채움 -->
+      </div>
+    </div>
   </div>
-</header>
 
-<main class="container">
-  <!-- HERO -->
-  <section class="hero mt-6">
-    <div style="max-width:64%;">
-      <div class="badge" style="display:inline-block;background:rgba(255,255,255,0.12);padding:6px 10px;border-radius:999px;font-weight:700;">NEW</div>
-      <h1>작은 거래도 즐거운 경험으로<br><span id="hero-slogan">팔래? 말래? 살래? 말래?</span></h1>
-      <p>실시간 입찰 · 이벤트 경매 · 간편 등록. 지금 바로 구경해보세요.</p>
-      <div style="margin-top:16px;">
-        <a href="weners_with_bids_realtime_auth.html" class="btn btn-primary">구경하러 가기</a>
-        <a href="#" id="create-btn" class="btn btn-ghost" style="margin-left:10px;">상품 등록</a>
-      </div>
-    </div>
-    <div class="floating" style="align-items:center;">
-      <div class="badge">Electronics</div>
-      <div class="badge">Book</div>
-      <div class="badge">Living</div>
-    </div>
-  </section>
+  <!-- scripts -->
+  <script type="module">
+    /* -------------------------------------------------------------------
+       Supabase init (ES module import)
+       - config.js must define window.SUPABASE_URL and window.SUPABASE_ANON_KEY
+       ------------------------------------------------------------------- */
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-  <!-- product list header -->
-  <section style="margin-top:26px; display:flex; justify-content:space-between; align-items:center;">
-    <h2 style="font-size:20px; font-weight:800;">전체 상품</h2>
-    <div class="muted">정렬 · 필터 · 검색 기능은 추후 추가됩니다</div>
-  </section>
-
-  <!-- product grid -->
-  <section style="margin-top:14px;">
-    <div id="product-grid" class="grid">
-      <!-- product cards rendered here -->
-    </div>
-    <div id="no-products" class="muted" style="text-align:center; padding:30px; display:none;">
-      등록된 상품이 없습니다. 상품 등록을 시도해보세요.
-    </div>
-  </section>
-</main>
-
-<!-- Create / Edit Modal (hidden by default) -->
-<div id="modal-create" class="modal hidden" aria-hidden="true">
-  <div class="modal-card">
-    <h3 style="font-size:18px; font-weight:800;">상품 등록</h3>
-    <form id="product-form" style="margin-top:12px;">
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-        <div>
-          <label class="muted">상품 제목 *</label>
-          <input id="title" required class="w-full border rounded px-3 py-2" />
-        </div>
-        <div>
-          <label class="muted">카테고리</label>
-          <input id="category" class="w-full border rounded px-3 py-2" placeholder="예: Electronics" />
-        </div>
-      </div>
-
-      <div style="margin-top:10px;">
-        <label class="muted">상품 설명</label>
-        <textarea id="description" class="w-full border rounded px-3 py-2" rows="4"></textarea>
-      </div>
-
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-        <div>
-          <label class="muted">시작가 (원) *</label>
-          <input id="price_start" type="number" required class="w-full border rounded px-3 py-2" />
-        </div>
-        <div>
-          <label class="muted">즉시구매가 (선택)</label>
-          <input id="buy_price" type="number" class="w-full border rounded px-3 py-2" placeholder="없음" />
-        </div>
-      </div>
-
-      <!-- Event auction fields -->
-      <div id="event-fields" style="margin-top:10px; display:none; background:#fffbeb; padding:10px; border-radius:8px;">
-        <div class="muted">이벤트 경매 설정</div>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:8px;">
-          <input id="event_start" class="w-full border rounded px-3 py-2" placeholder="예: 10000" />
-          <input id="event_end" class="w-full border rounded px-3 py-2" placeholder="예: 10050" />
-        </div>
-        <div class="muted" style="font-size:12px; margin-top:6px;">입찰자는 시작가와 종료가 사이의 숫자만 입력 가능. 낙찰금액은 범위에서 추첨됩니다.</div>
-      </div>
-
-      <!-- Images -->
-      <div style="margin-top:10px;">
-        <label class="muted">이미지 (최대 3장)</label>
-        <input id="images" type="file" accept="image/*" multiple class="w-full" />
-        <div id="preview-list" style="display:flex; gap:8px; margin-top:8px;"></div>
-      </div>
-
-      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-        <button type="button" id="cancel-create" class="btn btn-ghost">취소</button>
-        <button type="submit" class="btn btn-primary">등록하기</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- Simple product detail panel (overlay) -->
-<div id="modal-detail" class="modal hidden" aria-hidden="true">
-  <div class="modal-card" id="detail-card">
-    <!-- populated dynamically -->
-  </div>
-</div>
-<!-- JS: Supabase 연결 및 기능 통합 -->
-<script type="module">
-  // -------------- Supabase config (from your earlier provided data) --------------
-  // If you want these in a separate file, move them to public/config.js and use window.* variables.
-  const SUPABASE_URL = "https://wfgqdswcdwdvfaqwejmd.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmZ3Fkc3djZHdkdmZhcXdlam1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MDc2NjcsImV4cCI6MjA4MDM4MzY2N30.Jb9nqalTEPp3Grwy3lnLczl6cE7gTSsK4Ol3hXGdl1Q";
-  // -------------- end config --------------
-
-  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-  // bucket name for images
-  const IMG_BUCKET = "product-images";
-
-  // ----- utility functions -----
-  function el(tag, props = {}, children = []) {
-    const node = document.createElement(tag);
-    for (const [k,v] of Object.entries(props || {})) {
-      if (k === "class") node.className = v;
-      else if (k.startsWith("on") && typeof v === "function") node.addEventListener(k.slice(2).toLowerCase(), v);
-      else node.setAttribute(k, v);
+    // 안전 체크
+    if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+      console.error("Supabase config missing (config.js). window.SUPABASE_URL / SUPABASE_ANON_KEY 필요");
     }
-    if (typeof children === "string") node.innerHTML = children;
-    else children.forEach(c => node.appendChild(typeof c === "string" ? document.createTextNode(c) : c));
-    return node;
-  }
 
-  function fmt(n){ if(n===null||n===undefined) return ""; return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,","); }
+    const supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    window.supabaseClient = supabase;
+    console.log("🔥 Supabase 연결 성공!");
 
-  // ----- DOM refs -----
-  const productGrid = document.getElementById("product-grid");
-  const noProducts = document.getElementById("no-products");
-  const modalCreate = document.getElementById("modal-create");
-  const modalDetail = document.getElementById("modal-detail");
-  const productForm = document.getElementById("product-form");
-  const imagesInput = document.getElementById("images");
-  const previewList = document.getElementById("preview-list");
-  const createBtn = document.getElementById("create-btn");
-  const openCreate = document.getElementById("open-create");
-  const cancelCreate = document.getElementById("cancel-create");
+    /* ---------------------------
+       간단한 전역 유틸 / DOM 헬퍼
+       --------------------------- */
+    const $ = (sel)=>document.querySelector(sel);
+    const $$ = (sel)=>Array.from(document.querySelectorAll(sel));
 
-  // state
-  let currentProducts = [];
-  let isLoggedIn = false;
-  let currentUser = null;
+    // UI 요소
+    const productListEl = document.getElementById('productList');
+    const emptyNotice = document.getElementById('emptyNotice');
+    const todayCountEl = document.getElementById('todayCount');
+    const modalBackdrop = document.getElementById('modalBackdrop');
+    const modalContent = document.getElementById('modalContent');
+    const modalTitle = document.getElementById('modalTitle');
 
-  // initial check: test connectivity
-  (async ()=> {
-    try {
-      const { data, error } = await supabase.from("products").select("id").limit(1);
-      if (error) console.warn("Supabase test query error:", error.message);
-      else console.log("Supabase connected — products table reachable");
-    } catch(e) { console.error("Supabase init error", e); }
-  })();
-
-  // ----- load products from supabase -----
-  async function loadProducts(){
-    productGrid.innerHTML = "<div class='muted' style='padding:40px;text-align:center;'>로딩 중...</div>";
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select("id,title,description,price_start,buy_price,type,images,created_at")
-        .order("created_at",{ascending:false})
-        .limit(200);
-      if (error) { console.error(error); productGrid.innerHTML = "<div class='muted'>상품을 불러올 수 없습니다.</div>"; return; }
-      currentProducts = Array.isArray(data) ? data : [];
-      if (!currentProducts.length) {
-        productGrid.innerHTML = "";
-        noProducts.style.display = "block";
-        return;
-      }
-      noProducts.style.display = "none";
-      renderProducts(currentProducts);
-    } catch(e){
-      console.error("loadProducts error", e);
-      productGrid.innerHTML = "<div class='muted'>서버 오류</div>";
-    }
-  }
-
-  // render product cards
-  function renderProducts(items){
-    productGrid.innerHTML = "";
-    for(const p of items){
-      const img = (p.images && p.images.length && p.images[0]) ? p.images[0] : "https://placehold.co/600x400?text=No+Image";
-      const a = el("a", { href: `weners_product.html?id=${p.id}`, class: "card" });
-      a.innerHTML = `
-        <div style="height:220px; overflow:hidden;"><img src="${img}" class="card-img" alt="${(p.title||'상품')}"></div>
-        <div class="card-body">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="card-title">${p.title || '(제목없음)'}</div>
-            <div class="muted" style="font-size:12px;">${p.type || '일반'}</div>
-          </div>
-          <p class="muted" style="margin-top:8px; min-height:36px;">${(p.description||'').slice(0,120)}</p>
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-            <div style="font-weight:800; color:var(--accent);">시작가 ${fmt(p.price_start)}원</div>
-            <div class="muted">입찰 —</div>
-          </div>
-        </div>
-      `;
-      productGrid.appendChild(a);
-    }
-  }
-
-  // ----- realtime subscription -----
-  function setupRealtime(){
-    const channel = supabase.channel('realtime-products')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
-        console.log("products change", payload);
-        loadProducts();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'bids' }, payload => {
-        console.log("bids change", payload);
-        loadProducts();
-      })
-      .subscribe((status) => {
-        console.log("realtime status", status);
-      });
-  }
-
-  // ----- create product modal handling -----
-  function openCreateModal(){
-    modalCreate.classList.remove("hidden");
-  }
-  function closeCreateModal(){
-    modalCreate.classList.add("hidden");
-    productForm.reset();
-    previewList.innerHTML = "";
-    document.getElementById("event-fields").style.display = "none";
-  }
-
-  createBtn.addEventListener("click", (e)=>{ e.preventDefault(); openCreateModal(); });
-  openCreate.addEventListener("click", (e)=>{ e.preventDefault(); openCreateModal(); });
-  cancelCreate.addEventListener("click", (e)=>{ e.preventDefault(); closeCreateModal(); });
-
-  // preview images
-  imagesInput.addEventListener("change", (ev)=>{
-    previewList.innerHTML = "";
-    const files = Array.from(ev.target.files).slice(0,3);
-    files.forEach(file=>{
-      const reader = new FileReader();
-      const wrapper = el("div", { style: "width:80px;height:80px;border-radius:8px;overflow:hidden;border:1px solid #e6e6e6;position:relative;"});
-      const btn = el("button", { style:"position:absolute;right:4px;top:4px;background:#fff;border-radius:6px;padding:2px 6px;font-size:12px;cursor:pointer;"}, ["삭제"]);
-      btn.addEventListener("click", ()=> {
-        // remove from input (rebuild FileList)
-        const dt = new DataTransfer();
-        const remain = Array.from(imagesInput.files).filter(f => f !== file);
-        remain.forEach(f => dt.items.add(f));
-        imagesInput.files = dt.files;
-        wrapper.remove();
-      });
-      reader.onload = (e)=> {
-        const img = el("img", { src:e.target.result, style:"width:100%;height:100%;object-fit:cover;"});
-        wrapper.appendChild(img);
-        wrapper.appendChild(btn);
-        previewList.appendChild(wrapper);
-      };
-      reader.readAsDataURL(file);
+    // 버튼 이벤트
+    document.getElementById('btn-create').addEventListener('click', () => {
+      location.href = './create.html'; // create 페이지가 있다면 연결 (없으면 추후 만들 예정)
     });
-  });
+    document.getElementById('hero-create').addEventListener('click', () => {
+      location.href = './create.html';
+    });
+    document.getElementById('btn-login').addEventListener('click', () => {
+      location.href = './auth_login.html';
+    });
+    document.getElementById('btn-register').addEventListener('click', () => {
+      location.href = './auth_signup.html';
+    });
 
-  // upload image files to Supabase Storage and return array of public URLs or storage paths
-  async function uploadImages(files, productId){
-    if(!files || files.length===0) return [];
-    const out = [];
-    for(const f of Array.from(files).slice(0,3)){
-      // create a unique filename: productId_timestamp_original
-      const filename = `prod_${productId}_${Date.now()}_${f.name.replace(/\\s+/g,'_')}`;
+    /* ---------------------------
+       데이터 불러오기: products 테이블
+       - 컬럼: id, title, description, price_start, price_end, buy_now, images (json)
+       --------------------------- */
+    async function loadProducts() {
+      productListEl.innerHTML = '';
+      emptyNotice.style.display = 'none';
       try {
-        const { data, error } = await supabase.storage.from(IMG_BUCKET).upload(filename, f, { cacheControl: '3600', upsert: false });
-        if(error){
-          console.warn("storage upload error", error);
-          continue;
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, title, description, price_start, price_end, buy_now, images, created_at')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error("상품 불러오기 실패:", error);
+          emptyNotice.style.display = 'block';
+          emptyNotice.textContent = "서버에서 상품 목록을 가져올 수 없습니다.";
+          return;
         }
-        // get public URL
-        const { publicURL, error: pubErr } = supabase.storage.from(IMG_BUCKET).getPublicUrl(data.path);
-        if(pubErr) { console.warn("publicUrl error", pubErr); out.push(""); }
-        else out.push(publicURL);
-      } catch(e){
-        console.warn("uploadImages exception", e);
+
+        if (!data || data.length === 0) {
+          emptyNotice.style.display = 'block';
+          emptyNotice.textContent = "등록된 상품이 아직 없습니다.";
+          todayCountEl.textContent = 0;
+          return;
+        }
+
+        // 오늘 등록된 상품 수 (UTC 기준)
+        const today = new Date().toISOString().slice(0,10);
+        const todayCount = data.filter(p => (p.created_at||'').slice(0,10) === today).length;
+        todayCountEl.textContent = todayCount;
+
+        renderProducts(data);
+      } catch (err) {
+        console.error(err);
+        emptyNotice.style.display = 'block';
       }
     }
-    return out;
-  }
-  // insert product to supabase
-  async function insertProduct(payload, files){
-    // insert row first (without images), then upload images and update row with image urls
-    try{
-      const { data, error } = await supabase.from("products").insert([payload]).select().single();
-      if(error){ console.error("insert product error", error); return { error }; }
-      const product = data;
-      const uploaded = await uploadImages(files, product.id);
-      if(uploaded.length){
-        const { data:upd, error:updErr } = await supabase.from("products").update({ images: uploaded }).eq("id", product.id).select().single();
-        if(updErr) console.warn("update images error", updErr);
-      }
-      return { data: product };
-    }catch(e){ console.error("insertProduct exception", e); return { error:e }; }
-  }
 
-  // handle form submit
-  productForm.addEventListener("submit", async (ev)=>{
-    ev.preventDefault();
-    const title = document.getElementById("title").value.trim();
-    const category = document.getElementById("category").value.trim() || "일반";
-    const description = document.getElementById("description").value.trim();
-    const price_start = Number(document.getElementById("price_start").value) || 0;
-    const buy_price = Number(document.getElementById("buy_price").value) || null;
-    const type = (document.getElementById("event-fields").style.display !== "none") ? "event" : "general";
+    /* ---------------------------
+       렌더링: 상품 카드
+       --------------------------- */
+    function renderProducts(list) {
+      productListEl.innerHTML = '';
+      list.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'card';
 
-    if(!title || !price_start){ alert("필수 항목을 입력하세요."); return; }
-
-    // payload
-    const payload = {
-      title, description, price_start, buy_price, type, category,
-      created_at: new Date().toISOString()
-    };
-
-    // optimistic UI disable submit
-    const submitBtn = productForm.querySelector('button[type="submit"]');
-    submitBtn.disabled = true;
-    submitBtn.innerText = "등록중...";
-
-    const result = await insertProduct(payload, imagesInput.files);
-    if(result.error){ alert("등록 실패: " + (result.error.message || "오류")); submitBtn.disabled=false; submitBtn.innerText="등록하기"; return; }
-
-    // success
-    submitBtn.disabled=false;
-    submitBtn.innerText="등록하기";
-    closeCreateModal();
-    alert("상품이 등록되었습니다.");
-    loadProducts();
-  });
-
-  // ----- BID: prevent duplicate bid amounts and duplicate insertion -----
-  // Insert bid: requires table 'bids' with columns: id (uuid), product_id (uuid), bidder (text), amount (numeric), created_at (timestamp)
-  async function placeBid(productId, bidderEmail, amount){
-    // validation
-    if(!productId || !amount) return { error: { message: "Invalid bid" } };
-
-    // check duplicate bid amount already exists for same product
-    const { data:existing, error: e1 } = await supabase
-      .from("bids")
-      .select("id")
-      .eq("product_id", productId)
-      .eq("amount", amount)
-      .limit(1);
-    if(e1){ return { error: e1 }; }
-    if(existing && existing.length>0){
-      return { error: { message: "이미 동일 금액으로 입찰이 존재합니다. 다른 금액으로 입찰해주세요." } };
-    }
-
-    // insert new bid
-    const payload = { product_id: productId, bidder: bidderEmail || "anonymous", amount, created_at: new Date().toISOString() };
-    const { data, error } = await supabase.from("bids").insert([payload]).select().single();
-    if(error) return { error };
-    return { data };
-  }
-
-  // ----- product detail & bidding UI -----
-  async function openProductDetail(productId){
-    // fetch product
-    const { data, error } = await supabase.from("products").select("*").eq("id", productId).single();
-    if(error){ alert("상품을 불러올 수 없습니다."); return; }
-    const p = data;
-    // build detail UI
-    const card = document.getElementById("detail-card");
-    card.innerHTML = "";
-    const img = (p.images && p.images.length) ? p.images[0] : "https://placehold.co/800x400?text=No+Image";
-    const html = `
-      <div style="display:flex; gap:18px; align-items:flex-start;">
-        <div style="flex:1; max-width:420px;">
-          <img src="${img}" style="width:100%; height:320px; object-fit:cover; border-radius:8px;" />
-        </div>
-        <div style="flex:1;">
-          <h3 style="font-size:20px; font-weight:800;">${p.title}</h3>
-          <p class="muted" style="margin-top:8px;">${p.description||''}</p>
-          <div style="margin-top:12px;">
-            <div style="font-weight:800; color:var(--accent);">시작가 ${fmt(p.price_start)}원</div>
-            ${p.buy_price ? `<div class="muted">즉시구매가 ${fmt(p.buy_price)}원</div>` : ''}
+        // 이미지 처리: images 칼럼이 배열이면 첫 이미지 사용, 없으면 플레이스홀더
+        const imgUrl = (p.images && p.images.length && p.images[0]) ? p.images[0] : null;
+        div.innerHTML = `
+          <div class="img">
+            ${imgUrl ? `<img src="${escapeHtml(imgUrl)}" alt="${escapeHtml(p.title)}" style="max-width:100%; max-height:100%; object-fit:cover;">`
+                      : `<div style="text-align:center; padding:20px;"><svg width="64" height="64" viewBox="0 0 24 24" fill="none"><rect width="24" height="24" rx="6" fill="#eef2ff"></rect><path d="M7 12h10" stroke="#c7d2fe" stroke-width="1.5" stroke-linecap="round"></path></svg></div>`}
           </div>
-          <div style="margin-top:16px;">
-            <label class="muted">입찰 금액</label>
-            <input id="bid-amount" type="number" class="w-full border rounded px-3 py-2" placeholder="원 단위로 입력" />
-            <div style="display:flex; gap:8px; margin-top:8px;">
-              <button id="place-bid-btn" class="btn btn-primary">입찰하기</button>
-              ${p.buy_price ? `<button id="buy-now-btn" class="btn btn-ghost">즉시구매</button>` : ''}
+          <div class="body">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong>${escapeHtml(p.title)}</strong>
+              <div class="price">${formatPrice(p.price_start)}원</div>
             </div>
-            <div id="bid-message" class="muted" style="margin-top:8px;"></div>
+            <p style="margin:8px 0 0; color:#475569;">${escapeHtml(truncate(p.description||'',140))}</p>
+            <div style="display:flex; gap:8px; margin-top:12px; align-items:center;">
+              <button class="btn btn-ghost" onclick="openDetail('${p.id}')">상세보기</button>
+              <button class="btn btn-primary" onclick="placeBidPrompt('${p.id}')">입찰하기</button>
+            </div>
           </div>
-        </div>
-      </div>
-    `;
-    card.insertAdjacentHTML("beforeend", html);
-    modalDetail.classList.remove("hidden");
-    modalDetail.setAttribute("aria-hidden","false");
-
-    // handlers
-    const bidBtn = document.getElementById("place-bid-btn");
-    bidBtn.addEventListener("click", async ()=>{
-      const amt = Number(document.getElementById("bid-amount").value);
-      if(!amt || amt <= 0){ alert("유효한 금액을 입력하세요."); return; }
-      // attempt to place bid
-      const res = await placeBid(productId, currentUser ? currentUser.email : "guest", amt);
-      if(res.error){ document.getElementById("bid-message").innerText = res.error.message || "입찰 실패"; return; }
-      document.getElementById("bid-message").innerText = "입찰 성공!";
-      loadProducts();
-    });
-
-    const buyNow = document.getElementById("buy-now-btn");
-    if(buyNow){
-      buyNow.addEventListener("click", async ()=>{
-        // immediate purchase — creating a bid with buy_price or mark as sold (implementation depends on DB)
-        if(!confirm("즉시구매하시면 거래가 바로 완료됩니다. 계속 진행하시겠습니까?")) return;
-        const amt = p.buy_price || 0;
-        const res = await placeBid(productId, currentUser ? currentUser.email : "guest", amt);
-        if(res.error) alert("즉시구매 실패: " + (res.error.message || ''));
-        else { alert("즉시구매 완료"); loadProducts(); modalDetail.classList.add("hidden"); }
+        `;
+        productListEl.appendChild(div);
       });
     }
-  }
 
-  // close detail when clicked outside
-  modalDetail.addEventListener("click", (ev)=> {
-    if(ev.target === modalDetail) modalDetail.classList.add("hidden");
-  });
+    /* ---------------------------
+       상세 모달 열기
+       --------------------------- */
+    async function openDetail(id) {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, title, description, price_start, price_end, buy_now, images, created_at')
+          .eq('id', id)
+          .limit(1)
+          .single();
 
-  // delegation: open product detail when clicking card links
-  productGrid.addEventListener("click", (ev)=>{
-    const a = ev.target.closest("a");
-    if(!a) return;
-    ev.preventDefault();
-    const href = a.getAttribute("href");
-    const m = href && href.match(/id=([^&]+)/);
-    if(m) openProductDetail(m[1]);
-  });
+        if (error) {
+          console.error(error);
+          alert('상품을 불러올 수 없습니다.');
+          return;
+        }
 
-  // ----- initialize (load products and realtime) -----
-  (async function init(){
-    await loadProducts();
-    setupRealtime();
-  })();
+        modalTitle.textContent = data.title;
+        modalContent.innerHTML = `
+          <div style="display:flex; gap:12px; align-items:flex-start;">
+            <div style="flex:1">
+              ${data.images && data.images.length ? `<img src="${escapeHtml(data.images[0])}" style="width:100%; border-radius:8px;" />` : '<div class="img" style="height:200px">이미지 없음</div>'}
+            </div>
+            <div style="width:320px">
+              <div style="font-weight:700; font-size:18px; color:var(--accent); margin-bottom:8px">${formatPrice(data.price_start)}원</div>
+              <div style="color:#374151; margin-bottom:12px;">${escapeHtml(data.description||'')}</div>
+              <div style="display:flex; gap:8px;">
+                <button class="btn btn-primary" onclick="placeBidPrompt('${data.id}')">입찰</button>
+                <button class="btn btn-ghost" onclick="buyNow('${data.id}')">즉시구매</button>
+              </div>
+            </div>
+          </div>
+        `;
 
-  // Optional: expose some functions for debugging
-  window._wn = { loadProducts, openCreateModal, closeCreateModal, openProductDetail };
+        modalBackdrop.classList.remove('hidden');
+        modalBackdrop.style.display = 'flex';
+      } catch (err) {
+        console.error(err);
+      }
+    }
 
-</script>
+    function closeModal() {
+      modalBackdrop.classList.add('hidden');
+      modalBackdrop.style.display = 'none';
+    }
+    modalBackdrop.addEventListener('click', (e)=>{ if(e.target === modalBackdrop) closeModal(); });
+
+    /* ---------------------------
+       입찰 (간단한 프롬프트)
+       - bids 테이블에 insert (product_id, bidder, amount, created_at)
+       - 현재는 로그인 연동이 없으면 익명처리
+       --------------------------- */
+    async function placeBidPrompt(productId) {
+      const amountStr = prompt('입찰 금액을 입력하세요 (원)');
+      if (!amountStr) return;
+      const amount = Number(amountStr);
+      if (isNaN(amount) || amount <= 0) { alert('올바른 금액을 입력하세요'); return; }
+
+      // bidder: 이메일이 있다면 붙이고, 없다면 "guest"
+      let bidder = 'guest';
+      try {
+        const user = await supabase.auth.getUser();
+        if (user && user.data && user.data.user) {
+          bidder = user.data.user.email || user.data.user.id || 'user';
+        }
+      } catch (e) { bidder = 'guest'; }
+
+      // insert
+      const { error } = await supabase
+        .from('bids')
+        .insert([{ product_id: productId, bidder, amount }]);
+
+      if (error) {
+        console.error('입찰 실패:', error);
+        alert('입찰에 실패했습니다.');
+      } else {
+        alert('입찰이 등록되었습니다.');
+        // 필요하면 실시간 반영 위해 loadProducts();
+      }
+    }
+
+    async function buyNow(productId) {
+      // 즉시구매 처리 로직 예시: 상품에 buy_now 금액이 있으면 bid 테이블에 기록하고 상품 상태 업데이트 (간단 예시)
+      const confirmBuy = confirm('즉시구매 하시겠습니까?');
+      if (!confirmBuy) return;
+      const { data, error } = await supabase.from('products').select('buy_now').eq('id', productId).single();
+      if (error) { alert('처리 실패'); return; }
+      const price = data.buy_now || 0;
+      await supabase.from('bids').insert([{ product_id: productId, bidder: 'buyer', amount: price }]);
+      alert('구매가 처리되었습니다.');
+    }
+
+    /* ---------------------------
+       유틸: escape / format
+       --------------------------- */
+    function escapeHtml(s='') {
+      return String(s)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'", '&#39;');
+    }
+    function truncate(s, n=140){ return s.length>n ? s.slice(0,n)+'...' : s; }
+    function formatPrice(n){ if(n==null) return '0'; return Number(n).toLocaleString(); }
+
+    /* ---------------------------
+       페이지 스크롤 헬퍼
+       --------------------------- */
+    function scrollToSection(id){
+      const el = document.getElementById(id);
+      if(el) el.scrollIntoView({behavior:'smooth', block:'start'});
+    }
+
+    /* ---------------------------
+       Realtime (선택) : products 또는 bids 변경 시 자동 갱신
+       - Supabase Realtime 사용: public 테이블에 RLS / Policy 허용 필요
+       --------------------------- */
+    try {
+      // Realtime 채널 구독 (products 테이블 변경 시)
+      supabase.channel('public:products')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, payload => {
+          console.log('Realtime products change:', payload);
+          // 변경 발생하면 제품 목록 다시 불러오기
+          loadProducts();
+        })
+        .subscribe();
+    } catch(e) {
+      console.warn('Realtime setup error (허용되지 않는 환경일 수 있음):', e);
+    }
+
+    /* ---------------------------
+       초기 실행
+       --------------------------- */
+    document.addEventListener('DOMContentLoaded', () => {
+      loadProducts();
+      // 원래의 메인 슬라이더/애니메이션 등은 CSS/JS로 구현 — 간단한 텍스트 애니메이션 예시
+      rotateSlogan();
+      setInterval(rotateSlogan, 4000);
+    });
+
+    const slogans = ['팔래? 말래? 살래? 말래?', '놓치면 후회할 찬스!', '믿고 거래하는 WeNers'];
+    let sIdx = 0;
+    function rotateSlogan(){
+      sIdx = (sIdx+1) % slogans.length;
+      const el = document.getElementById('slogan');
+      if(el) el.textContent = slogans[sIdx];
+    }
+
+    /* -------------------------------------------------------------------
+       개발/디버그 보조: 콘솔에 요약 상태 출력
+       ------------------------------------------------------------------- */
+    console.log('WeNers Demo UI 초기화 완료');
+  </script>
 </body>
 </html>
